@@ -29,5 +29,5 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MNoise;
 
-template class Grid::Hadrons::MNoise::TFullVolumeSpinColorDiagonal<FIMPL>;
-template class Grid::Hadrons::MNoise::TFullVolumeSpinColorDiagonal<ZFIMPL>;
+template class Hadrons::MNoise::TFullVolumeSpinColorDiagonal<FIMPL>;
+template class Hadrons::MNoise::TFullVolumeSpinColorDiagonal<ZFIMPL>;

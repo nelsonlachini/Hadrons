@@ -29,7 +29,7 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MIO;
 
-template class Grid::Hadrons::MIO::TLoadEigenPack<FermionEigenPack<FIMPL>, GIMPL>;
+template class Hadrons::MIO::TLoadEigenPack<FermionEigenPack<FIMPL>, GIMPL>;
 #ifdef GRID_DEFAULT_PRECISION_DOUBLE
-template class Grid::Hadrons::MIO::TLoadEigenPack<FermionEigenPack<FIMPL, FIMPLF>, GIMPL>;
+template class Hadrons::MIO::TLoadEigenPack<FermionEigenPack<FIMPL, FIMPLF>, GIMPL>;
 #endif

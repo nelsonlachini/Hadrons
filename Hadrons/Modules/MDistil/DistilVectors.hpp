@@ -158,7 +158,7 @@ void TDistilVectors<FImpl>::execute(void)
 {
     auto &noise        = envGet(NoiseTensor,  par().noise);
     auto &perambulator = envGet(PerambTensor, par().perambulator);
-    auto &epack        = envGet(Grid::Hadrons::EigenPack<LatticeColourVector>, par().lapevec);
+    auto &epack        = envGet(Hadrons::EigenPack<LatticeColourVector>, par().lapevec);
     const DistilParameters &dp{envGet(DistilParameters, par().DistilParams)};
     
     envGetTmp(LatticeSpinColourVector, source4d);

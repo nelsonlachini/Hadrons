@@ -4,4 +4,4 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MSource;
 
-template class Grid::Hadrons::MSource::TZ2Diluted<FIMPL>;
+template class Hadrons::MSource::TZ2Diluted<FIMPL>;

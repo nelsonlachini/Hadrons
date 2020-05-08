@@ -29,6 +29,6 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MSource;
 
-template class Grid::Hadrons::MSource::TPoint<FIMPL>;
-template class Grid::Hadrons::MSource::TPoint<ScalarImplCR>;
+template class Hadrons::MSource::TPoint<FIMPL>;
+template class Hadrons::MSource::TPoint<ScalarImplCR>;
 

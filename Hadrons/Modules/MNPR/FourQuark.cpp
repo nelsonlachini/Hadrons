@@ -29,5 +29,5 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MNPR;
 
-template class Grid::Hadrons::MNPR::TFourQuark<FIMPL,FIMPL>;
+template class Hadrons::MNPR::TFourQuark<FIMPL,FIMPL>;
 

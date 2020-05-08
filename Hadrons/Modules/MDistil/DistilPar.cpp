@@ -29,4 +29,4 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MDistil;
 
-template class Grid::Hadrons::MDistil::TDistilPar<FIMPL>;
+template class Hadrons::MDistil::TDistilPar<FIMPL>;

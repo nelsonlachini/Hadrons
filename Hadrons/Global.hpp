@@ -50,11 +50,11 @@
  */
 
 #define BEGIN_HADRONS_NAMESPACE \
-namespace Grid {\
 namespace Hadrons {\
+using namespace Grid;\
 using Grid::operator<<;\
 using Grid::operator>>;
-#define END_HADRONS_NAMESPACE }}
+#define END_HADRONS_NAMESPACE }
 
 #define BEGIN_MODULE_NAMESPACE(name)\
 namespace name {\

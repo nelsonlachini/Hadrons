@@ -29,4 +29,4 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MContraction;
 
-template class Grid::Hadrons::MContraction::TWeakEye3pt<FIMPL>;
+template class Hadrons::MContraction::TWeakEye3pt<FIMPL>;

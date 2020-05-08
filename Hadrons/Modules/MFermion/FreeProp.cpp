@@ -29,5 +29,5 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MFermion;
 
-template class Grid::Hadrons::MFermion::TFreeProp<FIMPL>;
+template class Hadrons::MFermion::TFreeProp<FIMPL>;
 

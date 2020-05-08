@@ -29,4 +29,4 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MSource;
 
-template class Grid::Hadrons::MSource::TConvolution<FIMPL>;
+template class Hadrons::MSource::TConvolution<FIMPL>;

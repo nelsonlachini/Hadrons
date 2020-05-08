@@ -29,5 +29,5 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MUtilities;
 
-template class Grid::Hadrons::MUtilities::TPrecisionCast<GIMPLD::GaugeField, GIMPLF::GaugeField>;
-template class Grid::Hadrons::MUtilities::TPrecisionCast<FIMPLD::FermionField, FIMPLF::FermionField>;
+template class Hadrons::MUtilities::TPrecisionCast<GIMPLD::GaugeField, GIMPLF::GaugeField>;
+template class Hadrons::MUtilities::TPrecisionCast<FIMPLD::FermionField, FIMPLF::FermionField>;

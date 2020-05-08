@@ -142,7 +142,7 @@ void TPerambFromSolve<FImpl>::execute(void)
     const int LI_reduced{  par().LI_reduced};
     auto &perambulator  = envGet(PerambTensor, getName());
     auto &solve         = envGet(std::vector<FermionField>, par().solve);
-    auto &epack         = envGet(Grid::Hadrons::EigenPack<LatticeColourVector>, par().lapevec);
+    auto &epack         = envGet(Hadrons::EigenPack<LatticeColourVector>, par().lapevec);
     
     envGetTmp(LatticeColourVector, result4d_nospin);
     envGetTmp(LatticeColourVector, result3d_nospin);

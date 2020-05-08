@@ -29,9 +29,9 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MSolver;
 
-template class Grid::Hadrons::MSolver::TLocalCoherenceLanczos<FIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS>;
-template class Grid::Hadrons::MSolver::TLocalCoherenceLanczos<ZFIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS>;
+template class Hadrons::MSolver::TLocalCoherenceLanczos<FIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS>;
+template class Hadrons::MSolver::TLocalCoherenceLanczos<ZFIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS>;
 #ifdef GRID_DEFAULT_PRECISION_DOUBLE
-template class Grid::Hadrons::MSolver::TLocalCoherenceLanczos<FIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS, FIMPLF>;
-template class Grid::Hadrons::MSolver::TLocalCoherenceLanczos<ZFIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS, ZFIMPLF>;
+template class Hadrons::MSolver::TLocalCoherenceLanczos<FIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS, FIMPLF>;
+template class Hadrons::MSolver::TLocalCoherenceLanczos<ZFIMPL,HADRONS_DEFAULT_LANCZOS_NBASIS, ZFIMPLF>;
 #endif

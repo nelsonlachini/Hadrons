@@ -29,5 +29,5 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MSource;
 
-template class Grid::Hadrons::MSource::TSeqConserved<FIMPL>;
-template class Grid::Hadrons::MSource::TSeqConserved<ZFIMPL>;
+template class Hadrons::MSource::TSeqConserved<FIMPL>;
+template class Hadrons::MSource::TSeqConserved<ZFIMPL>;

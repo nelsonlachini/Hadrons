@@ -29,7 +29,7 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MAction;
 
-template class Grid::Hadrons::MAction::TWilson<FIMPL>;
+template class Hadrons::MAction::TWilson<FIMPL>;
 #ifdef GRID_DEFAULT_PRECISION_DOUBLE
-template class Grid::Hadrons::MAction::TWilson<FIMPLF>;
+template class Hadrons::MAction::TWilson<FIMPLF>;
 #endif

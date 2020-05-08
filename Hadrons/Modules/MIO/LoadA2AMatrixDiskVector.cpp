@@ -29,4 +29,4 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MIO;
 
-template class Grid::Hadrons::MIO::TLoadA2AMatrixDiskVector<FIMPL>;
+template class Hadrons::MIO::TLoadA2AMatrixDiskVector<FIMPL>;

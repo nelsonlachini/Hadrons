@@ -164,7 +164,7 @@ public:
 BEGIN_MODULE_NAMESPACE(MDistil)
 
 //Eigenvectors of the Laplacian
-using LapEvecs = Grid::Hadrons::EigenPack<LatticeColourVector>;
+using LapEvecs = Hadrons::EigenPack<LatticeColourVector>;
 
 // Noise vector (index order: nnoise, nt, nvec, ns)
 

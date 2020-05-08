@@ -30,4 +30,4 @@ using namespace Grid;
 using namespace Hadrons;
 using namespace MDistil;
 
-template class Grid::Hadrons::MDistil::TNoises<FIMPL>;
+template class Hadrons::MDistil::TNoises<FIMPL>;
