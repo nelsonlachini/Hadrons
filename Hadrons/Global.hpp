@@ -244,6 +244,11 @@ void        makeFileDir(const std::string filename, GridBase *g = nullptr);
 #define HADRONS_SCHUR_A2A(conv) _HADRONS_SCHUR_A2A_(conv)
 #define HADRONS_DEFAULT_SCHUR_A2A HADRONS_SCHUR_A2A(HADRONS_DEFAULT_SCHUR)
 
+// default eigenvector basis size
+#ifndef HADRONS_DEFAULT_LANCZOS_NBASIS
+#define HADRONS_DEFAULT_LANCZOS_NBASIS 60
+#endif
+
 // stringify macro
 #define _HADRONS_STR(x) #x
 #define HADRONS_STR(x) _HADRONS_STR(x)

@@ -33,11 +33,6 @@
 
 BEGIN_HADRONS_NAMESPACE
 
-// Lanczos type
-#ifndef HADRONS_DEFAULT_LANCZOS_NBASIS
-#define HADRONS_DEFAULT_LANCZOS_NBASIS 60
-#endif
-
 #define HADRONS_DUMP_EP_METADATA(record) \
 LOG(Message) << "Eigenpack metadata:" << std::endl;\
 LOG(Message) << "* operator" << std::endl;\
