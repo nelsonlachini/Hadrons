@@ -34,6 +34,8 @@
 #include <Hadrons/ModuleFactory.hpp>
 #include <Hadrons/DilutedNoise.hpp>
 #include <Hadrons/NamedTensor.hpp>
+#include <Hadrons/NamedTensorNoMetadata.hpp>
+#include <Hadrons/NamedTensorTimeSourceMetadata.hpp>
 #include <Hadrons/Solver.hpp>
 #include <Hadrons/DistillationVectors.hpp>
 #include <Hadrons/Modules/MDistil/DistilUtils.hpp>

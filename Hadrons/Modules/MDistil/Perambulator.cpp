@@ -37,6 +37,12 @@ BEGIN_HADRONS_NAMESPACE
 
 // Global constants for distillation
 
+#ifdef HAVE_HDF5
+extern const std::string NamedTensorNoMetadataFileExtension{".h5"};
+#else
+extern const std::string NamedTensorNoMetadataFileExtension{".dat"};
+#endif
+
 BEGIN_MODULE_NAMESPACE(MDistil)
 
 const std::string                PerambTensor::Name__{"Perambulator"};
@@ -47,6 +53,12 @@ const std::array<std::string, 5> PerambIndexTensor::DefaultIndexNames__{"nT", "n
 
 const std::string                TimesliceEvals::Name__{"TimesliceEigenValues"};
 const std::array<std::string, 2> TimesliceEvals::DefaultIndexNames__{"nT", "nVec"};
+
+const std::string                PerambTensorNoMetadata::Name__{"Perambulator"};
+const std::array<std::string, 6> PerambTensorNoMetadata::DefaultIndexNames__{"nT", "nVec", "LI", "nNoise", "nT_inv", "SI"};
+
+const std::string                PerambTensorTimeSourceMetadata::Name__{"Perambulator"};
+const std::array<std::string, 6> PerambTensorTimeSourceMetadata::DefaultIndexNames__{"nT", "nVec", "LI", "nNoise", "nT_inv", "SI"};
 
 END_MODULE_NAMESPACE
 END_HADRONS_NAMESPACE
