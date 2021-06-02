@@ -43,6 +43,12 @@ extern const std::string NamedTensorNoMetadataFileExtension{".h5"};
 extern const std::string NamedTensorNoMetadataFileExtension{".dat"};
 #endif
 
+#ifdef HAVE_HDF5
+extern const std::string NamedTensorTimeSourceMetadataFileExtension{".h5"};
+#else
+extern const std::string NamedTensorTimeSourceMetadataFileExtension{".dat"};
+#endif
+
 BEGIN_MODULE_NAMESPACE(MDistil)
 
 const std::string                PerambTensor::Name__{"Perambulator"};

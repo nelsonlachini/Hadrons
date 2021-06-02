@@ -38,7 +38,6 @@
 #include <Hadrons/ModuleFactory.hpp>
 #include <Hadrons/DilutedNoise.hpp>
 #include <Hadrons/NamedTensor.hpp>
-#include <Hadrons/NamedTensorNoMetadata.hpp>
 #include <Hadrons/Modules/MDistil/DistilUtils.hpp>
 
 BEGIN_HADRONS_NAMESPACE
