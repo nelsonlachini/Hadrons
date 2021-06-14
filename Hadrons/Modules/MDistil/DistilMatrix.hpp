@@ -208,10 +208,22 @@ DilutionMap DmfComputation<FImpl,T,Tio>::getMap(Side s)
 }
 
 template <typename FImpl, typename T, typename Tio>
+bool DmfComputation<FImpl,T,Tio>::isPhi(Side s)
+{
+    return (dmfType_.at(s)=="phi" ? true : false);
+}
+
+template <typename FImpl, typename T, typename Tio>
+bool DmfComputation<FImpl,T,Tio>::isRho(Side s)
+{
+    return (dmfType_.at(s)=="rho" ? true : false);
+}
+
+template <typename FImpl, typename T, typename Tio>
 void DmfComputation<FImpl,T,Tio>
 ::makePhiComponent(FermionField&            phiComponent,
                    DistillationNoise&       n,
-                   const unsigned int                n_idx,
+                   const unsigned int       n_idx,
                    const unsigned int       iD,
                    PerambTensor&            peramb,
                    LapPack&                 epack)
@@ -237,18 +249,6 @@ void DmfComputation<FImpl,T,Tio>
 }
 
 template <typename FImpl, typename T, typename Tio>
-bool DmfComputation<FImpl,T,Tio>::isPhi(Side s)
-{
-    return (dmfType_.at(s)=="phi" ? true : false);
-}
-
-template <typename FImpl, typename T, typename Tio>
-bool DmfComputation<FImpl,T,Tio>::isRho(Side s)
-{
-    return (dmfType_.at(s)=="rho" ? true : false);
-}
-
-template <typename FImpl, typename T, typename Tio>
 void DmfComputation<FImpl,T,Tio>
 ::makeRhoComponent(FermionField&        rhoComponent,
                    DistillationNoise&   n,
@@ -267,21 +267,25 @@ void DmfComputation<FImpl,T,Tio>
           std::map<Side, PerambTensor&>                 peramb)
 {
     std::map<Side,unsigned int> noise_pair = {{Side::left,n_idx[0]},{Side::right,n_idx[1]}};
-    for(auto s : sides)    // computation of phi or rho
-    for(unsigned int iD=0 ; iD<noises_.at(s).dilutionSize() ; iD++)
+
+    for(auto s : sides)    // computation of phi or rhos
     {
-        dv.at(s)[iD] = Zero();
-        std::vector<unsigned int> tDilS = timeDilSource.at(s);
-        unsigned int dt = noises_.at(s).dilutionCoordinates(iD)[Index::t];
-        if(std::find(tDilS.begin(), tDilS.end(), dt) != tDilS.end()) // if time source is available, compute that block
+        std::vector<unsigned int> time_sources = timeDilSource.at(s);
+        for(unsigned int idt=0 ; idt<time_sources.size() ; idt++)   // compute just time sources specified 
         {
-            if(isPhi(s))
+            unsigned int dt = time_sources[idt];
+            unsigned int iD_offset = noises_.at(s).dilutionIndex(dt,0,0);    //assuming t is the slowest index
+            unsigned int iiD = idt*dil_size_ls_.at(s);  // reduced dilution index
+            for(unsigned int iD=iD_offset ; iD<dil_size_ls_.at(s) ; iD++)
             {
-                makePhiComponent(dv.at(s)[iD] , noises_.at(s) , noise_pair.at(s) , iD , peramb.at(s), epack);
-            }
-            else if(isRho(s))
-            {
-                makeRhoComponent(dv.at(s)[iD] , noises_.at(s) , noise_pair.at(s), iD);
+                if(isPhi(s))
+                {
+                    makePhiComponent(dv.at(s)[iiD] , noises_.at(s) , noise_pair.at(s) , iD , peramb.at(s), epack);
+                }
+                else if(isRho(s))
+                {
+                    makeRhoComponent(dv.at(s)[iiD] , noises_.at(s) , noise_pair.at(s), iD);
+                }
             }
         }
     }
@@ -302,9 +306,11 @@ void DmfComputation<FImpl,T,Tio>
     bool fileIsInit = false;
     const unsigned int vol = g_->_gsites;
     // computing mesonfield blocks and saving to disk
-    for (unsigned int dtL : timeDilSource.at(Side::left))
-    for (unsigned int dtR : timeDilSource.at(Side::right))
+    for (unsigned int idtL=0 ; idtL<timeDilSource.at(Side::left).size() ; idtL++)
+    for (unsigned int idtR=0 ; idtR<timeDilSource.at(Side::right).size() ; idtR++)  
     {
+        unsigned int dtL = timeDilSource.at(Side::left)[idtL];
+        unsigned int dtR = timeDilSource.at(Side::right)[idtR];
         std::map<Side,std::vector<unsigned int>> p = { {Side::left,{}} , {Side::right,{}}};
         for(auto s : sides)
         {
@@ -321,8 +327,8 @@ void DmfComputation<FImpl,T,Tio>
 
         std::vector<unsigned int> stInter;
         std::set_intersection(p.at(Side::left).begin(), p.at(Side::left).end(), 
-                              p.at(Side::right).begin(), p.at(Side::right).end(),
-                              std::back_inserter(stInter));
+                            p.at(Side::right).begin(), p.at(Side::right).end(),
+                            std::back_inserter(stInter));
 
         const int nt_sparse = stInter.size();
         bBuf_.resize(next_*nstr_*nt_sparse*bSize_*bSize_); //does Hadrons environment knows about this? anyway
@@ -371,8 +377,8 @@ void DmfComputation<FImpl,T,Tio>
                     double timer = 0.0;
                     START_TIMER("kernel");
                     // as dictated by DistillationNoise, dt must be the slowest index for this to work; otherwise will have to compute l/r block at each contraction)
-                    unsigned int iDl = noises_.at(Side::left).dilutionIndex(dtL,0,0) , iDr = noises_.at(Side::right).dilutionIndex(dtR,0,0);
-                    A2Autils<FImpl>::MesonField(blockCache, &dv.at(Side::left)[iDl+iblock+icache], &dv.at(Side::right)[iDr+jblock+jcache], gamma_, ph, nd_ - 1, &timer);
+                    unsigned int iiDL = idtL*dil_size_ls_.at(Side::left) , iiDR = idtR*dil_size_ls_.at(Side::right);
+                    A2Autils<FImpl>::MesonField(blockCache, &dv.at(Side::left)[iiDL+iblock+icache], &dv.at(Side::right)[iiDR+jblock+jcache], gamma_, ph, nd_ - 1, &timer);
                     STOP_TIMER("kernel");
                     time_kernel += timer;
 
