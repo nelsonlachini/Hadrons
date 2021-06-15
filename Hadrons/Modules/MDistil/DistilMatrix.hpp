@@ -331,7 +331,7 @@ void DmfComputation<FImpl,T,Tio>
                             std::back_inserter(stInter));
 
         const int nt_sparse = stInter.size();
-        bBuf_.resize(next_*nstr_*nt_sparse*bSize_*bSize_); //does Hadrons environment knows about this? anyway
+        bBuf_.resize(next_*nstr_*nt_sparse*bSize_*bSize_);
 
         if( !stInter.empty() ) // only execute case when partitions have at least one time slice in common
         {
@@ -359,7 +359,7 @@ void DmfComputation<FImpl,T,Tio>
                 << std::endl;
 
                 LOG(Message) << "Block size : "         << nt_sparse*iblockSize*jblockSize*sizeof(Tio)/1024. << "KB/momentum/gamma" << std::endl;
-                LOG(Message) << "Cache block size : "   << DISTIL_NT_CHUNK_SIZE*cSize_*cSize_*sizeof(T) << "B/momentum/gamma" << std::endl;
+                LOG(Message) << "Cache block size : "   << (DISTIL_NT_CHUNK_SIZE>nt_ ? nt_ : DISTIL_NT_CHUNK_SIZE)*cSize_*cSize_*sizeof(T) << "B/momentum/gamma" << std::endl;
 
                 double flops        = 0.0;
                 double bytes        = 0.0;
