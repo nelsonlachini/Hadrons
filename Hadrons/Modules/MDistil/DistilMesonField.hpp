@@ -197,13 +197,13 @@ void TDistilMesonField<FImpl>::setup(void)
     }
 
     // still don't know which time sources perambulators contains (setup phase), so if empty allocate all to make sure distil vectors are big enough 
-    unsigned int tsl_size = tsourcel_.empty() ? env().getDim(g->Nd() - 1) : tsourcel_.size();
-    unsigned int tsr_size = tsourcer_.empty() ? env().getDim(g->Nd() - 1) : tsourcer_.size();
+    // unsigned int tsl_size = tsourcel_.empty() ? env().getDim(g->Nd() - 1) : tsourcel_.size();
+    // unsigned int tsr_size = tsourcer_.empty() ? env().getDim(g->Nd() - 1) : tsourcer_.size();
 
     envTmpLat(ComplexField,             "coor");
     envCache(std::vector<ComplexField>, "phasename",    1, momenta_.size(), g );
-    envTmp(DistilVector,                "dvl",          1, tsl_size*dilutionSize_ls_.at(Side::left), g);
-    envTmp(DistilVector,                "dvr",          1, tsr_size*dilutionSize_ls_.at(Side::right), g);
+    envTmp(DistilVector,                "dvl",          1, dilutionSize_ls_.at(Side::left), g);
+    envTmp(DistilVector,                "dvr",          1, dilutionSize_ls_.at(Side::right), g);
     envTmp(Computation,                 "computation",  1, dmf_type_, g, g3d, noisel, noiser, par().blockSize, 
                 par().cacheSize, env().getDim(g->Nd() - 1), momenta_.size(), gamma_.size(), isExact_);
 }
@@ -381,15 +381,16 @@ void TDistilMesonField<FImpl>::execute(void)
                     peramb.emplace(s , perambtemp);
                 }
             }
-            computation.makeDistVecs(dist_vecs, npair, epack, time_sources, peramb);
+            // computation.makeDistVecs(dist_vecs, npair, epack, time_sources, peramb);
+            computation.execute(filenameDmfFn, metadataDmfFn, gamma_, dist_vecs, npair, phase, time_sources, epack, this, peramb);
         }
         else
         {
-            computation.makeDistVecs(dist_vecs, npair, epack, time_sources);
+            // computation.makeDistVecs(dist_vecs, npair, epack, time_sources);
+            computation.execute(filenameDmfFn, metadataDmfFn, gamma_, dist_vecs, npair, phase, time_sources, epack, this);
         }
 
         // computing mesonfield blocks and saving to disk
-        computation.execute(filenameDmfFn, metadataDmfFn, gamma_, dist_vecs, npair, phase, time_sources, this);
 
         LOG(Message) << "Meson fields saved at " << outputMFPath_ << std::endl;
     }
