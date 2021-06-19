@@ -99,7 +99,7 @@ class DmfComputation
 public:
     FERM_TYPE_ALIASES(FImpl,);
     typedef DistillationNoise<FImpl> DistillationNoise;
-    typedef typename std::vector<FermionField> DistilVector;
+    typedef Vector<FermionField> DistilVector;
     typedef typename DistillationNoise::Index Index;
     typedef typename DistillationNoise::LapPack LapPack;
     typedef std::function<std::string(const unsigned int, const unsigned int, const int, const int)>  FilenameFn;
@@ -305,26 +305,27 @@ void DmfComputation<FImpl,T,Tio>
     std::vector<std::vector<unsigned int>> timeDilutionPairList;
     bool fileIsInit = false;
     const unsigned int vol = g_->_gsites;
-    // computing mesonfield blocks and saving to disk
+    // computing time-dillution blocks and saving to disk
     for (unsigned int idtL=0 ; idtL<timeDilSource.at(Side::left).size() ; idtL++)
     for (unsigned int idtR=0 ; idtR<timeDilSource.at(Side::right).size() ; idtR++)  
     {
         unsigned int dtL = timeDilSource.at(Side::left)[idtL];
         unsigned int dtR = timeDilSource.at(Side::right)[idtR];
+        // fetch necessary time slices for this block
         std::map<Side,std::vector<unsigned int>> p = { {Side::left,{}} , {Side::right,{}}};
         for(auto s : sides)
         {
             if(isPhi(s))
             {
                 p.at(s).resize(nt_);
-                std::iota(std::begin(p.at(s)), std::end(p.at(s)), 0); //phi: filling with all time slices <-> intersects with non-empty
+                //phi: filling with all time slices -> intersects with non-empty
+                std::iota(std::begin(p.at(s)), std::end(p.at(s)), 0); 
             }
             else
             {
                 p.at(s) =  noises_.at(s).timeSlices(s==Side::left ? dtL : dtR);
             }
         }
-
         std::vector<unsigned int> stInter;
         std::set_intersection(p.at(Side::left).begin(), p.at(Side::left).end(), 
                             p.at(Side::right).begin(), p.at(Side::right).end(),
@@ -358,9 +359,6 @@ void DmfComputation<FImpl,T,Tio>
                 << iblock+iblockSize-1 << ", " << jblock << " .. " << jblock+jblockSize-1 << "]" 
                 << std::endl;
 
-                LOG(Message) << "Block size : "         << nt_sparse*iblockSize*jblockSize*sizeof(Tio)/1024. << "KB/momentum/gamma" << std::endl;
-                LOG(Message) << "Cache block size : "   << (DISTIL_NT_CHUNK_SIZE>nt_ ? nt_ : DISTIL_NT_CHUNK_SIZE)*cSize_*cSize_*sizeof(T) << "B/momentum/gamma" << std::endl;
-
                 double flops        = 0.0;
                 double bytes        = 0.0;
                 double time_kernel  = 0.0;
@@ -373,6 +371,10 @@ void DmfComputation<FImpl,T,Tio>
                     unsigned int icacheSize = MIN(iblockSize-icache,cSize_);      // icacheSize is the size of the current cache_ block (indexed by ii); N_ii-ii is the size of the remainder cache_ block
                     unsigned int jcacheSize = MIN(jblockSize-jcache,cSize_);
                     A2AMatrixSet<T> blockCache(cBuf_.data(), next_, nstr_, nt_, icacheSize, jcacheSize);
+                    
+                    // temporary log messages
+                    // LOG(Message) << "Block size (one be saved to disk, sparse time dimension): "    << nt_sparse*iblockSize*jblockSize*sizeof(Tio)/1024. << "KB/momentum/gamma" << std::endl;
+                    // LOG(Message) << "Cache block size (non-sparse time dimension): "                << nt_*icacheSize*jcacheSize*sizeof(T)/1024. << "KB/momentum/gamma" << std::endl;
 
                     double timer = 0.0;
                     START_TIMER("kernel");
@@ -380,6 +382,8 @@ void DmfComputation<FImpl,T,Tio>
                     unsigned int iiDL = idtL*dil_size_ls_.at(Side::left) , iiDR = idtR*dil_size_ls_.at(Side::right);
                     A2Autils<FImpl>::MesonField(blockCache, &dv.at(Side::left)[iiDL+iblock+icache], &dv.at(Side::right)[iiDR+jblock+jcache], gamma_, ph, nd_ - 1, &timer);
                     STOP_TIMER("kernel");
+                    // std::cout << "intermediate kernel time: " << timer << " ; " << "grid kernel time: " << GET_TIMER("kernel") << std::endl;
+                    // std::cin.get();
                     time_kernel += timer;
 
                     // nExt is currently # of momenta , nStr is # of gamma matrices

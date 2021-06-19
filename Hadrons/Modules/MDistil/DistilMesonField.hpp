@@ -196,7 +196,7 @@ void TDistilMesonField<FImpl>::setup(void)
         gamma_ = strToVec<Gamma::Algebra>(par().gamma);
     }
 
-    // still don't know which time sources perambulators contains, so if empty allocate all to make sure distil vectors are big enough 
+    // still don't know which time sources perambulators contains (setup phase), so if empty allocate all to make sure distil vectors are big enough 
     unsigned int tsl_size = tsourcel_.empty() ? env().getDim(g->Nd() - 1) : tsourcel_.size();
     unsigned int tsr_size = tsourcer_.empty() ? env().getDim(g->Nd() - 1) : tsourcer_.size();
 
