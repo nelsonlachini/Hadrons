@@ -371,7 +371,7 @@ void DmfComputation<FImpl,T,Tio>
 
                         double timer = 0.0;
                         START_TIMER("kernel");
-                        A2Autils<FImpl>::MesonField(cache, &dv.at(Side::left)[i+ii], &dv.at(Side::right)[j+jj], gamma_, ph, nd_ - 1, &timer);
+                        A2Autils<FImpl>::MesonField(cache, &dv.at(Side::left)[i+ii], &dv.at(Side::right)[j+jj], gamma_, ph, ts_intersection , nd_ - 1, &timer);
                         STOP_TIMER("kernel");
                         time_kernel += timer;
 
@@ -428,7 +428,8 @@ void DmfComputation<FImpl,T,Tio>
                             }
                             matrixIo.saveBlock(block, iext , istr , i, j, datasetName, ts_intersection, cacheSize_);   //sets 2D chunk size and creates dataset
                         }
-                        else{
+                        else
+                        {
                             matrixIo.saveBlock(block, iext , istr , i, j, datasetName);
                         }
                         STOP_TIMER("IO: write block");
