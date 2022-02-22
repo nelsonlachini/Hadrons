@@ -327,7 +327,9 @@ void TLapEvec<FImpl>::execute(void)
         {
             eig[t].resize(LPar.nVec, gridLD);
         }
-        RotateEigen( eig[t].evec ); // Rotate the eigenvectors into our phase convention
+
+        // comment this out to be able to compute phase later (to convert perambulators to new phase convention)
+        // RotateEigen( eig[t].evec ); // Rotate the eigenvectors into our phase convention
         
         for (int i=0;i<LPar.nVec;i++)
         {
