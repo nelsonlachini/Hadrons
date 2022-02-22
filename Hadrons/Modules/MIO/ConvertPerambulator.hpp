@@ -252,7 +252,8 @@ void TConvertPerambulator<FImpl>::execute(void)
                 }
             }
         }
-        PerambTmp.write(sNewPerambName.c_str());
+        if(gridHD->IsBoss())
+            PerambTmp.write(sNewPerambName.c_str());
     }
 }
 
