@@ -130,7 +130,9 @@ void TConvertPerambulator<FImpl>::execute(void)
     auto &epack_4d = envGet(typename DistillationNoise<FImpl>::LapPack, par().lapEigenPack);
     GridCartesian * gridHD = envGetGrid(FermionField);
     GridCartesian * gridLD = envGetSliceGrid(FermionField,gridHD->Nd() -1);
-    const int Ntfirst{gridHD->LocalStarts()[Tdir]};
+    const unsigned int Nt_first = gridHD->LocalStarts()[gridHD->Nd() - 1];
+    const unsigned int Nt_local = gridHD->LocalDimensions()[gridHD->Nd() - 1];
+    
     auto &perambulator = envGet(MDistil::PerambTensor, getName());
     auto &dilNoise = envGet(DistillationNoise<FImpl>, par().distilNoise);
     int nNoise = dilNoise.size();        
@@ -149,12 +151,12 @@ void TConvertPerambulator<FImpl>::execute(void)
     envGetTmp(MDistil::PerambIndexTensor, PerambTmp);
     envGetTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>, epack_3d);   // Eigenpack for each timeslice
 
-    for (int t = 0; t < Nt; t++)
+    for (unsigned int t = Nt_first; t < Nt_first + Nt_local; t++)
     {
         epack_3d[t].resize(epack_4d.evec.size(),gridLD);
         for (int i=0;i<nVec;i++)
         {
-            ExtractSliceLocal(epack_3d[t].evec[i],epack_4d.evec[i],0,t-Ntfirst,Tdir); // switch to 3d object
+            ExtractSliceLocal(epack_3d[t].evec[i],epack_4d.evec[i],0,t-Nt_first,Tdir); // switch to 3d object
         }
     }
 
@@ -173,7 +175,8 @@ void TConvertPerambulator<FImpl>::execute(void)
         sPerambName.append(std::to_string(dt));
         sPerambName.append(".");
         sPerambName.append(std::to_string(vm().getTrajectory()));
-        PerambTmp.read(sPerambName.c_str());
+        if(gridHD->IsBoss())
+            PerambTmp.read(sPerambName.c_str());
 
         std::string sNewPerambName {par().newPerambFileName};
         Hadrons::mkdir(sNewPerambName);
