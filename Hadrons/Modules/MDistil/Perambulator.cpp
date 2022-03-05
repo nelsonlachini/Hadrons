@@ -45,6 +45,9 @@ const std::array<std::string, 6> PerambTensor::DefaultIndexNames__{"nT", "nVec",
 const std::string                PerambIndexTensor::Name__{"Perambulator"};
 const std::array<std::string, 5> PerambIndexTensor::DefaultIndexNames__{"nT", "nVec", "nDL", "nNoise", "nDS"};
 
+const std::string                PerambIndexTensorOld::Name__{"Perambulator"};
+const std::array<std::string, 5> PerambIndexTensorOld::DefaultIndexNames__{"nT", "nVec", "nDL", "nNoise", "nDS"};
+
 const std::string                TimesliceEvals::Name__{"TimesliceEigenValues"};
 const std::array<std::string, 2> TimesliceEvals::DefaultIndexNames__{"nT", "nVec"};
 

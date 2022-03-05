@@ -117,8 +117,7 @@ void TConvertPerambulator<FImpl>::setup(void)
     GridCartesian * gridHD = envGetGrid(FermionField);
     GridCartesian * gridLD = envGetSliceGrid(FermionField,gridHD->Nd() -1);
 
-
-    envCreate(MDistil::PerambTensor, getName(), 1, Nt, nVec, nDL, nNoise, nSourceT, nDS);
+    envTmp(MDistil::PerambIndexTensorOld, "PerambTmpOld", 1, Nt, nVec, nDL, nNoise, nDS);
     envTmp(MDistil::PerambIndexTensor, "PerambTmp", 1, Nt, nVec, nDL, nNoise, nDS);
     envTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>,  "epack_3d", 1, Nt);
 }
@@ -130,10 +129,7 @@ void TConvertPerambulator<FImpl>::execute(void)
     auto &epack_4d = envGet(typename DistillationNoise<FImpl>::LapPack, par().lapEigenPack);
     GridCartesian * gridHD = envGetGrid(FermionField);
     GridCartesian * gridLD = envGetSliceGrid(FermionField,gridHD->Nd() -1);
-    const unsigned int Nt_first = gridHD->LocalStarts()[gridHD->Nd() - 1];
-    const unsigned int Nt_local = gridHD->LocalDimensions()[gridHD->Nd() - 1];
     
-    auto &perambulator = envGet(MDistil::PerambTensor, getName());
     auto &dilNoise = envGet(DistillationNoise<FImpl>, par().distilNoise);
     int nNoise = dilNoise.size();        
     int nVec = dilNoise.getNl();        
@@ -146,17 +142,17 @@ void TConvertPerambulator<FImpl>::execute(void)
     int nSourceT;
     std::vector<int> invT;
     nSourceT = MDistil::getSourceTimesFromInput(sourceT,nDT,dilNoise,invT);    
-    perambulator.MetaData.timeSources = invT;
     
+    envGetTmp(MDistil::PerambIndexTensorOld, PerambTmpOld);
     envGetTmp(MDistil::PerambIndexTensor, PerambTmp);
     envGetTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>, epack_3d);   // Eigenpack for each timeslice
 
-    for (unsigned int t = Nt_first; t < Nt_first + Nt_local; t++)
+    for (unsigned int t = 0; t < Nt; t++)
     {
         epack_3d[t].resize(epack_4d.evec.size(),gridLD);
         for (int i=0;i<nVec;i++)
         {
-            ExtractSliceLocal(epack_3d[t].evec[i],epack_4d.evec[i],0,t-Nt_first,Tdir); // switch to 3d object
+            ExtractSliceLocal(epack_3d[t].evec[i],epack_4d.evec[i],0,t,Tdir); // switch to 3d object
         }
     }
 
@@ -175,8 +171,7 @@ void TConvertPerambulator<FImpl>::execute(void)
         sPerambName.append(std::to_string(dt));
         sPerambName.append(".");
         sPerambName.append(std::to_string(vm().getTrajectory()));
-        if(gridHD->IsBoss())
-            PerambTmp.read(sPerambName.c_str());
+        PerambTmpOld.read(sPerambName.c_str());
 
         std::string sNewPerambName {par().newPerambFileName};
         Hadrons::mkdir(sNewPerambName);
@@ -246,7 +241,7 @@ void TConvertPerambulator<FImpl>::execute(void)
                                     for (int in = 0; in < nNoise; in++)
                                     for (int ids = 0; ids < nDS; ids++)
                                     {
-                                        PerambTmp.tensor(t,ivec,dk,in,ids) = PerambTmp.tensor(t,ivec,dk,in,ids) * phi_new * phi_old_conj;
+                                        PerambTmp.tensor(t,ivec,dk,in,ids) = PerambTmpOld.tensor(t,ivec,dk,in,ids) * phi_new * phi_old_conj;
                                     }
                                 }
                             }
@@ -255,8 +250,13 @@ void TConvertPerambulator<FImpl>::execute(void)
                 }
             }
         }
+        PerambTmp.MetaData.timeDilutionIndex = PerambTmpOld.MetaData.timeDilutionIndex;
+        PerambTmp.MetaData.Version = PerambTmpOld.MetaData.Version;
+        PerambTmp.MetaData.noiseHashes = {"0"};
         if(gridHD->IsBoss())
+        {
             PerambTmp.write(sNewPerambName.c_str());
+        }
     }
 }
 

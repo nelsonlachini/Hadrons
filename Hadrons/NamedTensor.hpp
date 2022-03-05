@@ -258,6 +258,15 @@ public:
                                     std::vector<std::string>, noiseHashes );
 };
 
+// Separate class for multiFile
+class PerambIndexOldMetadata : Serializable
+{
+public:
+    GRID_SERIALIZABLE_CLASS_MEMBERS(PerambIndexOldMetadata, 
+                                    std::string, Version,
+                                    int, timeDilutionIndex);
+};
+
 class PerambIndexTensor : public NamedTensor<SpinVector, 5, PerambIndexMetadata>
 {
     public:
@@ -266,6 +275,17 @@ class PerambIndexTensor : public NamedTensor<SpinVector, 5, PerambIndexMetadata>
     // Construct a named tensor explicitly specifying size of each dimension
     template<typename... IndexTypes>
     PerambIndexTensor(Eigen::Index nT, Eigen::Index nVec, Eigen::Index nDl, Eigen::Index nNoise, Eigen::Index nDs)
+    : NamedTensor{Name__, DefaultIndexNames__, nT, nVec, nDl, nNoise, nDs} {}
+};
+
+class PerambIndexTensorOld : public NamedTensor<SpinVector, 5, PerambIndexOldMetadata>
+{
+    public:
+    static const std::string                Name__;
+    static const std::array<std::string, 5> DefaultIndexNames__;
+    // Construct a named tensor explicitly specifying size of each dimension
+    template<typename... IndexTypes>
+    PerambIndexTensorOld(Eigen::Index nT, Eigen::Index nVec, Eigen::Index nDl, Eigen::Index nNoise, Eigen::Index nDs)
     : NamedTensor{Name__, DefaultIndexNames__, nT, nVec, nDl, nNoise, nDs} {}
 };
 
