@@ -54,7 +54,8 @@ public:
                                         std::string, perambFileName,
                                         std::string, newPerambFileName,
                                         std::string, distilNoise,
-                                        std::string, lapEigenPack,
+                                        std::string, lapEigenPack_old,
+                                        std::string, lapEigenPack_new,
                                         std::string, timeSources);
 };
 
@@ -89,7 +90,7 @@ TConvertPerambulator<FImpl>::TConvertPerambulator(const std::string name) : Modu
 template <typename FImpl>
 std::vector<std::string> TConvertPerambulator<FImpl>::getInput(void)
 {
-    std::vector<std::string> in = {par().lapEigenPack, par().distilNoise};
+    std::vector<std::string> in = {par().lapEigenPack_old, par().lapEigenPack_new, par().distilNoise};
     return {in};
 }
 
@@ -119,14 +120,16 @@ void TConvertPerambulator<FImpl>::setup(void)
 
     envTmp(MDistil::PerambIndexTensorOld, "PerambTmpOld", 1, Nt, nVec, nDL, nNoise, nDS);
     envTmp(MDistil::PerambIndexTensor, "PerambTmp", 1, Nt, nVec, nDL, nNoise, nDS);
-    envTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>,  "epack_3d", 1, Nt);
+    envTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>,  "epack_3d_old", 1, Nt);
+    envTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>,  "epack_3d_new", 1, Nt);
 }
 
 // execution ///////////////////////////////////////////////////////////////////
 template <typename FImpl>
 void TConvertPerambulator<FImpl>::execute(void)
 {
-    auto &epack_4d = envGet(typename DistillationNoise<FImpl>::LapPack, par().lapEigenPack);
+    auto &epack_4d_old = envGet(typename DistillationNoise<FImpl>::LapPack, par().lapEigenPack_old);
+    auto &epack_4d_new = envGet(typename DistillationNoise<FImpl>::LapPack, par().lapEigenPack_old);
     GridCartesian * gridHD = envGetGrid(FermionField);
     GridCartesian * gridLD = envGetSliceGrid(FermionField,gridHD->Nd() -1);
     
@@ -145,14 +148,17 @@ void TConvertPerambulator<FImpl>::execute(void)
     
     envGetTmp(MDistil::PerambIndexTensorOld, PerambTmpOld);
     envGetTmp(MDistil::PerambIndexTensor, PerambTmp);
-    envGetTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>, epack_3d);   // Eigenpack for each timeslice
+    envGetTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>, epack_3d_old);   // Eigenpack for each timeslice
+    envGetTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>, epack_3d_new);   // Eigenpack for each timeslice
 
     for (unsigned int t = 0; t < Nt; t++)
     {
-        epack_3d[t].resize(epack_4d.evec.size(),gridLD);
+        epack_3d_old[t].resize(epack_4d_old.evec.size(),gridLD);
+        epack_3d_new[t].resize(epack_4d_new.evec.size(),gridLD);
         for (int i=0;i<nVec;i++)
         {
-            ExtractSliceLocal(epack_3d[t].evec[i],epack_4d.evec[i],0,t,Tdir); // switch to 3d object
+            ExtractSliceLocal(epack_3d_old[t].evec[i],epack_4d_old.evec[i],0,t,Tdir); // switch to 3d object
+            ExtractSliceLocal(epack_3d_new[t].evec[i],epack_4d_new.evec[i],0,t,Tdir); // switch to 3d object
         }
     }
 
@@ -183,11 +189,11 @@ void TConvertPerambulator<FImpl>::execute(void)
         // multiplying perambulator by evec phases
         for (int t = 0; t < Nt; t++)
         {
-            auto grid = epack_3d[t].evec[0].Grid();
+            auto grid = epack_3d_old[t].evec[0].Grid();
             Coordinate siteFirst(grid->Nd(),0);
 
             ColourVector cv0_old_t;
-            peekSite(cv0_old_t, epack_3d[t].evec[0], siteFirst);
+            peekSite(cv0_old_t, epack_3d_old[t].evec[0], siteFirst);
             const std::complex<Real> cplx0_old_t{cv0_old_t()()(0).real(), cv0_old_t()()(0).imag()};
             if( cplx0_old_t.imag() == 0 )
                 ;
@@ -198,7 +204,7 @@ void TConvertPerambulator<FImpl>::execute(void)
                 const Grid::Complex phase_old_t{std_phase_old_t.real(),std_phase_old_t.imag()};
 
                 ColourVector cv0_old_dt;
-                peekSite(cv0_old_dt, epack_3d[dt].evec[0], siteFirst);
+                peekSite(cv0_old_dt, epack_3d_old[dt].evec[0], siteFirst);
                 const std::complex<Real> cplx0_old_dt{cv0_old_dt()()(0).real(), cv0_old_dt()()(0).imag()};
                 if( cplx0_old_t.imag() == 0 )
                     ;
@@ -213,7 +219,7 @@ void TConvertPerambulator<FImpl>::execute(void)
                     for( int dk = 0 ; dk < nVec ; dk++ )
                     {
                         ColourVector cv0_dk;
-                        peekSite(cv0_dk, epack_3d[dt].evec[dk], siteFirst);
+                        peekSite(cv0_dk, epack_3d_new[dt].evec[dk], siteFirst);
                         const std::complex<Real> cplx0_dk{cv0_dk()()(0).real(), cv0_dk()()(0).imag()};
                         if( cplx0_dk.imag() == 0 )
                             ;
@@ -226,7 +232,7 @@ void TConvertPerambulator<FImpl>::execute(void)
                             for (int ivec = 0; ivec < nVec; ivec++)
                             {
                                 ColourVector cv0_ivec;
-                                peekSite(cv0_ivec, epack_3d[t].evec[ivec], siteFirst);
+                                peekSite(cv0_ivec, epack_3d_new[t].evec[ivec], siteFirst);
                                 const std::complex<Real> cplx0_ivec{cv0_ivec()()(0).real(), cv0_ivec()()(0).imag()};
                                 if( cplx0_ivec.imag() == 0 )
                                     ;
