@@ -140,6 +140,8 @@ void TConvertPerambulator<FImpl>::execute(void)
     int nDS = dilNoise.dilutionSize(DistillationNoise<FImpl>::Index::s);        
     int nDT = dilNoise.dilutionSize(DistillationNoise<FImpl>::Index::t);        
     const int  Nt{env().getDim(Tdir)};
+    const unsigned int Nt_first = gridHD->LocalStarts()[Tdir];
+    const unsigned int Nt_local = gridHD->LocalDimensions()[Tdir];
 
     std::string sourceT = par().timeSources;
     int nSourceT;
@@ -151,14 +153,15 @@ void TConvertPerambulator<FImpl>::execute(void)
     envGetTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>, epack_3d_old);   // Eigenpack for each timeslice
     envGetTmp(std::vector<typename DistillationNoise<FImpl>::LapPack>, epack_3d_new);   // Eigenpack for each timeslice
 
-    for (unsigned int t = 0; t < Nt; t++)
+    // for (unsigned int t = 0; t < Nt; t++)
+    for (unsigned int t = Nt_first; t < Nt_first + Nt_local; t++)
     {
         epack_3d_old[t].resize(epack_4d_old.evec.size(),gridLD);
         epack_3d_new[t].resize(epack_4d_new.evec.size(),gridLD);
         for (int i=0;i<nVec;i++)
         {
-            ExtractSliceLocal(epack_3d_old[t].evec[i],epack_4d_old.evec[i],0,t,Tdir); // switch to 3d object
-            ExtractSliceLocal(epack_3d_new[t].evec[i],epack_4d_new.evec[i],0,t,Tdir); // switch to 3d object
+            ExtractSliceLocal(epack_3d_old[t].evec[i],epack_4d_old.evec[i],0,t-Nt_first,Tdir); // switch to 3d object
+            ExtractSliceLocal(epack_3d_new[t].evec[i],epack_4d_new.evec[i],0,t-Nt_first,Tdir); // switch to 3d object
         }
     }
 
