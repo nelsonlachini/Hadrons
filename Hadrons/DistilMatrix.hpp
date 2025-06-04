@@ -171,6 +171,8 @@ template <typename T>
 template <typename MetadataType>
 void DistilMatrixIo<T>::initFile(const MetadataType &d)
 {
+    if(!std::filesystem::exists(filename_))
+    {
 #ifdef HAVE_HDF5
     LOG(Message) << "File " << filename_ << " doesn't exist, creating..." << std::endl;
     Hdf5Writer writer(filename_);
@@ -179,6 +181,11 @@ void DistilMatrixIo<T>::initFile(const MetadataType &d)
 #else
     HADRONS_ERROR(Implementation, "distil matrix I/O needs HDF5 library");
 #endif
+    }
+    else
+    {
+        LOG(Message) << "File " << filename_ << " exists, saving results into it..." << std::endl;
+    }
 }
 
 template <typename T>
