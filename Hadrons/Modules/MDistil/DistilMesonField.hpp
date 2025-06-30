@@ -1,5 +1,5 @@
 /*
- * DistilMesonFieldRelative.hpp, part of Hadrons (https://github.com/aportelli/Hadrons)
+ * DistilMesonField.hpp, part of Hadrons (https://github.com/aportelli/Hadrons)
  *
  * Copyright (C) 2015 - 2023
  *
@@ -28,8 +28,8 @@
 /*  END LEGAL */
 
 
-#ifndef Hadrons_MDistil_DistilMesonFieldRelative_hpp_
-#define Hadrons_MDistil_DistilMesonFieldRelative_hpp_
+#ifndef Hadrons_MDistil_DistilMesonField_hpp_
+#define Hadrons_MDistil_DistilMesonField_hpp_
 
 #include <Hadrons/Global.hpp>
 #include <Hadrons/Module.hpp>
@@ -42,18 +42,18 @@
 BEGIN_HADRONS_NAMESPACE
 
 /********************************************************************************
- *                   DistilMesonFieldRelative using deltaT method               *
+ *                   DistilMesonField using deltaT method               *
  * Receives LapH eigenvectors and perambulator/noise.                           *
- * Computes DistilMesonFieldRelatives by block (of spin-lap dilution size)      *
+ * Computes DistilMesonFields by block (of spin-lap dilution size)      *
  * and save them to H5 files.                                                   *
  *******************************************************************************/
 
 BEGIN_MODULE_NAMESPACE(MDistil)
 
-class DistilMesonFieldRelativePar: Serializable
+class DistilMesonFieldPar: Serializable
 {
 public:
-    GRID_SERIALIZABLE_CLASS_MEMBERS(DistilMesonFieldRelativePar,
+    GRID_SERIALIZABLE_CLASS_MEMBERS(DistilMesonFieldPar,
                                     std::string,                outPath,
                                     std::string,                lapEigenPack,
                                     std::string,                leftNoise,
@@ -74,7 +74,7 @@ public:
 };
 
 template <typename FImpl>
-class TDistilMesonFieldRelative: public Module<DistilMesonFieldRelativePar>
+class TDistilMesonField: public Module<DistilMesonFieldPar>
 {
 public:
     FERM_TYPE_ALIASES(FImpl,);
@@ -85,9 +85,9 @@ public:
     typedef typename Computation::DistillationNoise DistillationNoise;
 public:
     // constructor
-    TDistilMesonFieldRelative(const std::string name);
+    TDistilMesonField(const std::string name);
     // destructor
-    virtual ~TDistilMesonFieldRelative(void) {};
+    virtual ~TDistilMesonField(void) {};
     // dependency relation
     virtual std::vector<std::string> getInput(void);
     virtual std::vector<std::string> getOutput(void);
@@ -110,21 +110,21 @@ private:
     std::vector<unsigned int>           delta_t_list_;
 };
 
-MODULE_REGISTER_TMP(DistilMesonFieldRelative, TDistilMesonFieldRelative<FIMPL>, MDistil);
+MODULE_REGISTER_TMP(DistilMesonField, TDistilMesonField<FIMPL>, MDistil);
 
 /******************************************************************************
- *                 TDistilMesonFieldRelative implementation                             *
+ *                 TDistilMesonField implementation                             *
  ******************************************************************************/
 // constructor /////////////////////////////////////////////////////////////////
 template <typename FImpl>
-TDistilMesonFieldRelative<FImpl>::TDistilMesonFieldRelative(const std::string name)
-: Module<DistilMesonFieldRelativePar>(name)
+TDistilMesonField<FImpl>::TDistilMesonField(const std::string name)
+: Module<DistilMesonFieldPar>(name)
 {
 }
 
 // dependencies/products ///////////////////////////////////////////////////////
 template <typename FImpl>
-std::vector<std::string> TDistilMesonFieldRelative<FImpl>::getInput(void)
+std::vector<std::string> TDistilMesonField<FImpl>::getInput(void)
 {   
     std::vector<std::string> in = {par().lapEigenPack, par().leftNoise, par().rightNoise};
 
@@ -145,7 +145,7 @@ std::vector<std::string> TDistilMesonFieldRelative<FImpl>::getInput(void)
 }
 
 template <typename FImpl>
-std::vector<std::string> TDistilMesonFieldRelative<FImpl>::getOutput(void)
+std::vector<std::string> TDistilMesonField<FImpl>::getOutput(void)
 {
     std::vector<std::string> out = {};
     return out;
@@ -153,7 +153,7 @@ std::vector<std::string> TDistilMesonFieldRelative<FImpl>::getOutput(void)
 
 // setup ///////////////////////////////////////////////////////////////////////
 template <typename FImpl>
-void TDistilMesonFieldRelative<FImpl>::setup(void)
+void TDistilMesonField<FImpl>::setup(void)
 {
     GridCartesian *g            = envGetGrid(FermionField);
     GridCartesian *g3d          = envGetSliceGrid(FermionField, g->Nd() - 1);
@@ -169,10 +169,10 @@ void TDistilMesonFieldRelative<FImpl>::setup(void)
     {
         isExact_ = true;
     }
-    // else if(noisel.dilutionSize(Index::t)!=nt or noiser.dilutionSize(Index::t)!=nt)
-    // {
-    //      HADRONS_ERROR(Implementation, "Non-full time dilution not implemented.");
-    // }
+    else if(noisel.dilutionSize(Index::t)!=nt or noiser.dilutionSize(Index::t)!=nt)
+    {
+         HADRONS_ERROR(Implementation, "Non-full time dilution not implemented.");
+    }
 
     if(par().blockSize > dilSizeLS_.at(Side::left) or par().blockSize > dilSizeLS_.at(Side::right))
     {
@@ -291,7 +291,7 @@ void TDistilMesonFieldRelative<FImpl>::setup(void)
 
 // execution ///////////////////////////////////////////////////////////////////
 template <typename FImpl>
-void TDistilMesonFieldRelative<FImpl>::execute(void)
+void TDistilMesonField<FImpl>::execute(void)
 {
     // temps
     envGetTmp(DistilVector, dvl);
@@ -517,4 +517,4 @@ void TDistilMesonFieldRelative<FImpl>::execute(void)
 END_MODULE_NAMESPACE
 END_HADRONS_NAMESPACE
 
-#endif // Hadrons_MDistil_DistilMesonFieldRelative_hpp_
+#endif // Hadrons_MDistil_DistilMesonField_hpp_

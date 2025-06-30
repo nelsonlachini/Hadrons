@@ -15,4 +15,5 @@ Makefile.in
 /Hadrons/Modules.hpp
 /Hadrons/modules.inc
 .DS_Store
+not_used.sh
 *~
