@@ -839,37 +839,50 @@ void DmfComputation<FImpl,T,Tio>
 {
     std::array<uint,3> d_coor = n.dilutionCoordinates(D);
     uint dt = d_coor[Index::t] , dk = d_coor[Index::l] , ds = d_coor[Index::s];
-    if(!vectorStem_.at(s).empty())
+
+    if(dk==0 and ds==0)
     {
-        loadPhiComponent(tmp4d_, n , n_idx , D , vectorStem_.at(s) , epack, tarray);    // potentially io demanding
+        LOG(Message) << "Phi(T=" << dt << ") : t={" << MDistil::timeslicesDump(n.dilutionPartition(Index::t, dt)) << "}" << std::endl;
     }
-    
-    //compute at relative_time, insert at t=relative_time
-    const uint relative_time    = (dt + delta_t)%nt_;               //TODO: generalise to dilution
-    const uint t                = relative_time;
-     
-    const uint nVec = epack.evec.size();
-    const uint Nt_first = g_->LocalStarts()[nd_ - 1];
-    const uint Nt_local = g_->LocalDimensions()[nd_ - 1];
-    if( (relative_time>=Nt_first) and (relative_time<Nt_first+Nt_local) )
+
+    for (auto it : n.dilutionPartition(Index::t, dt))
     {
-        tmp3d_ = Zero();
-        for (uint k = 0; k < nVec; k++)
+        //compute at rel_t, insert at t=rel_t (full t-dil only)
+        const uint rel_t = (it+delta_t)%nt_; // enabling delta_t!=0 only for non t-dilution at Module
+        const uint t     = rel_t;
+
+        if(!vectorStem_.at(s).empty())
         {
-            if(vectorStem_.at(s).empty())
+            if (delta_t!=0) // would have to change D into something aware of rel_t 
             {
-                std::vector<int> peramb_ts = peramb.at(s).MetaData.timeSources;
-                std::vector<int>::iterator itr_dt = std::find(peramb_ts.begin(), peramb_ts.end(), dt);
-                uint idt_peramb = std::distance(peramb_ts.begin(), itr_dt); //gets correspondent index of dt in the tensor obj 
-                ExtractSliceLocal(evec3d_,epack.evec[k],0,relative_time-Nt_first,nd_ - 1);
-                tmp3d_ += evec3d_ * peramb.at(s).tensor(relative_time, k, dk, n_idx, idt_peramb, ds);
+                HADRONS_ERROR(Implementation, "delta_t!=0 not supported when loading vector from disk...");
             }
-            else
-            {
-                ExtractSliceLocal(tmp3d_,tmp4d_,0,relative_time-Nt_first,nd_ - 1); // extracting timeslice from loaded field
-            }
+            loadPhiComponent(tmp4d_, n , n_idx , D , vectorStem_.at(s) , epack, tarray);    // potentially io demanding
         }
-        InsertSliceLocal(tmp3d_,phi_component,0,t-Nt_first,nd_ - 1);
+        
+        const uint nVec = epack.evec.size();
+        const uint Nt_first = g_->LocalStarts()[nd_ - 1];
+        const uint Nt_local = g_->LocalDimensions()[nd_ - 1];
+        if( (rel_t>=Nt_first) and (rel_t<Nt_first+Nt_local) )
+        {
+            tmp3d_ = Zero();
+            for (uint k = 0; k < nVec; k++)
+            {
+                if(vectorStem_.at(s).empty())
+                {
+                    std::vector<int> peramb_ts = peramb.at(s).MetaData.timeSources;
+                    std::vector<int>::iterator itr_dt = std::find(peramb_ts.begin(), peramb_ts.end(), dt);
+                    uint idt_peramb = std::distance(peramb_ts.begin(), itr_dt); //gets correspondent index of dt in the tensor obj 
+                    ExtractSliceLocal(evec3d_,epack.evec[k],0,rel_t-Nt_first,nd_ - 1);
+                    tmp3d_ += evec3d_ * peramb.at(s).tensor(rel_t, k, dk, n_idx, idt_peramb, ds);
+                }
+                else
+                {
+                    ExtractSliceLocal(tmp3d_,tmp4d_,0,rel_t-Nt_first,nd_ - 1); // extracting timeslice from loaded field
+                }
+            }
+            InsertSliceLocal(tmp3d_,phi_component,0,t-Nt_first,nd_ - 1);
+        }
     }
 }
 
@@ -888,16 +901,21 @@ void DmfComputation<FImpl,T,Tio>
 
     typename DistillationNoise::NoiseType   noise(n.getNoise()[n_idx].data(), nt_, epack.eval.size(), Ns);
 
+    if(dk==0 and ds==0)
+    {
+        LOG(Message) << "Rho(T=" << dt << ") : t={" << MDistil::timeslicesDump(n.dilutionPartition(Index::t, dt)) << "}" << std::endl;
+    }
+    
     for (auto it : n.dilutionPartition(Index::t, dt))
     {
-        //compute at relative_time, insert at t (for rho vector, delta_t=0 always, and so they're the same)
-        const uint relative_time = it;
-        const uint t             = relative_time;
+        //compute at rel_t, insert at t (for relative rho vector, delta_t should have been to 0 already, and so they're the same)
+        const uint rel_t = it;
+        const uint t     = rel_t;
 
         // adapt to time dilution!
         const uint Nt_first = g_->LocalStarts()[nd_ - 1];
         const uint Nt_local = g_->LocalDimensions()[nd_ - 1];
-        if( (relative_time>=Nt_first) and (relative_time<Nt_first+Nt_local) )
+        if( (rel_t>=Nt_first) and (rel_t<Nt_first+Nt_local) )
         {
             for (auto ik : n.dilutionPartition(Index::l, dk))
             {
@@ -906,7 +924,7 @@ void DmfComputation<FImpl,T,Tio>
                     // LOG(Message) << "block(ik=" << ik << ",is=" << is << ")" << std::endl;
                     
                     START_TIMER("makeRelativeRhoComponent:ExtractSliceLocal");
-                    ExtractSliceLocal(evec3d_, epack.evec[ik], 0, relative_time - Nt_first, nd_-1);
+                    ExtractSliceLocal(evec3d_, epack.evec[ik], 0, rel_t - Nt_first, nd_-1);
                     STOP_TIMER("makeRelativeRhoComponent:ExtractSliceLocal");
                     
                     evec3d_ = evec3d_*noise(it, ik, is);
@@ -1161,7 +1179,7 @@ void DmfComputation<FImpl,T,Tio>
                     DistillationNoise& n_rel = distilNoise_.at(relative_side);
                     LOG(Message) << "Starting parallel IO. Rank count=" << N_ranks << std::endl;
                     // for(uint it=0 ; it<time_dil_source.at(relative_side).size() ; it++)
-                    for (auto dt : time_dil_source.at(relative_side)) //n.dilutionPartition(Index::t, dt))
+                    for (auto dt : time_dil_source.at(relative_side))
                     {
                         for(auto it : n_rel.dilutionPartition(Index::t, dt))
                         {

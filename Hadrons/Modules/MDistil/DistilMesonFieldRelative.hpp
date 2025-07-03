@@ -169,10 +169,6 @@ void TDistilMesonFieldRelative<FImpl>::setup(void)
     {
         isExact_ = true;
     }
-    // else if(noisel.dilutionSize(Index::t)!=nt or noiser.dilutionSize(Index::t)!=nt)
-    // {
-    //      HADRONS_ERROR(Implementation, "Non-full time dilution not implemented.");
-    // }
 
     if(par().blockSize > dilSizeLS_.at(Side::left) or par().blockSize > dilSizeLS_.at(Side::right))
     {
@@ -262,7 +258,7 @@ void TDistilMesonFieldRelative<FImpl>::setup(void)
     }
 
     //parse deltaT
-    if(dmfType_.at(relative_side_)=="phi")
+    if(dmfType_.at(relative_side_)=="phi" and !par().deltaT.empty())
     {
         delta_t_list_ = strToVec<unsigned int>(par().deltaT);
     }
@@ -270,6 +266,13 @@ void TDistilMesonFieldRelative<FImpl>::setup(void)
     {
         delta_t_list_ = {0};    //pinning a relative rho field implies in only delta_t=0 by definition
     }
+
+    if((noisel.dilutionSize(Index::t)!=nt or noiser.dilutionSize(Index::t)!=nt) and delta_t_list_!=std::vector<unsigned int>({0}))
+    {
+        HADRONS_ERROR(Implementation, "delta_t!=0 only implemented for full-time dilution.");
+    }
+    
+
     
     unsigned int nExt = momenta_.size() , nStr = gamma_.size();
     envTmpLat(ComplexField,             "coor");

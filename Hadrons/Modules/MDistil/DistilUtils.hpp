@@ -119,7 +119,9 @@ inline std::string timeslicesDump(const std::vector<unsigned int> ts)
     std::stringstream ss;
     for (auto& t : ts)
         ss << t << " ";
-    return ss.str();
+    std::string s =ss.str();
+    s.pop_back();
+    return s;
 };
 
 END_MODULE_NAMESPACE
