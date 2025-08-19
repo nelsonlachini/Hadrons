@@ -97,7 +97,8 @@ using DistilMesonFieldMatrix = Eigen::Matrix<T, -1, -1, Eigen::RowMajor>;
 using DilutionMap  = std::array<std::vector<std::vector<uint>>,3>;
 
 enum Side {left = 0, right = 1};
-const std::vector<Side> sides =  {Side::left,Side::right};  //for easy looping over sides
+const std::vector<Side> sides =  {Side::left,Side::right};
+const std::map<Side, std::string> sideToStr = {{Side::left,"left"}, {Side::right,"right"}};
 
 // metadata serialiser class
 template <typename FImpl>
@@ -141,7 +142,7 @@ public:
 
     // block I/O
     template <typename MetadataType>
-    void initFile(const MetadataType &d);
+    void initFile(const MetadataType &d, const bool verbose=false);
 
     void saveBlock(const T *data, const uint i, const uint j,
                    const uint blockSizei, const uint blockSizej, std::string t_name, std::string datasetName, const uint chunkSize);
@@ -169,29 +170,32 @@ DistilMatrixIo<T>::DistilMatrixIo(std::string filename, std::string dataname,
 
 template <typename T>
 template <typename MetadataType>
-void DistilMatrixIo<T>::initFile(const MetadataType &d)
+void DistilMatrixIo<T>::initFile(const MetadataType &d, const bool verbose)
 {
+#ifdef HAVE_HDF5
     if(!std::filesystem::exists(filename_))
     {
-#ifdef HAVE_HDF5
-    LOG(Message) << "File " << filename_ << " doesn't exist, creating..." << std::endl;
-    Hdf5Writer writer(filename_);
-    push(writer, dataname_);    //creates main h5 group
-    write(writer, "Metadata", d);
+        if(verbose)
+        {
+            LOG(Message) << "Creating files " << filename_ << " , ..." << std::endl;
+        }
+        Hdf5Writer writer(filename_);
+        push(writer, dataname_);
+        write(writer, "Metadata", d);
+    }
+    else if(verbose)
+    {
+        LOG(Message) << "WARNING: appending to files " << filename_ << " , ... generated on past executions (suppressing further warnings)" << std::endl;
+    }
 #else
     HADRONS_ERROR(Implementation, "distil matrix I/O needs HDF5 library");
 #endif
     }
-    else
-    {
-        LOG(Message) << "WARNING!: file " << filename_ << " already exists, saving results into it..." << std::endl;
-    }
-}
 
 template <typename T>
 size_t DistilMatrixIo<T>::getSize(void) const
 {
-    return nt_*ni_*nj_*sizeof(T);
+    return ni_*nj_*sizeof(T);
 }
 
 template <typename T>
@@ -230,6 +234,7 @@ void DistilMatrixIo<T>::saveBlock(const T *data,
                                     static_cast<hsize_t>(nj_)},
                                 chunk = {static_cast<hsize_t>(chunkSize), 
                                     static_cast<hsize_t>(chunkSize)};
+
         dataspace.setExtentSimple(dim.size(), dim.data());
         H5NS::DSetCreatPropList     plist;
         plist.setChunk(chunk.size(), chunk.data());
@@ -244,6 +249,11 @@ void DistilMatrixIo<T>::saveBlock(const T *data,
                          block  = {1, 1}; 
     H5NS::DataSpace      memspace(count.size(), count.data()), dataspace;
     dataspace   = dataset.getSpace();
+    // std::cout << std::endl << "H5 dims= " << ni_ << " " << nj_ << std::endl;
+    // std::cout << "H5 chunks= " << chunkSize_i << " " << chunkSize_j << std::endl;
+    // std::cout << "H5 counts= " << blockSizei << " " << blockSizej << std::endl;
+    // std::cout << "H5 offsets= " << i << " " << j << std::endl;
+
     dataspace.selectHyperslab(H5S_SELECT_SET, count.data(), offset.data(),
                               stride.data(), block.data());
     dataset.write(data, Hdf5Type<T>::type(), memspace, dataspace);
@@ -293,7 +303,7 @@ void DistilMatrixIo<T>::load(Vec<VecT> &v, const uint t, const std::string datas
         hdim.resize(dataspace.getSimpleExtentNdims());
         dataspace.getSimpleExtentDims(hdim.data());
         if ((ni_ * nj_ != 0) and
-            ((hdim[0] != ni_) or (hdim[0] != nj_)))
+            ((hdim[0] != ni_) or (hdim[1] != nj_)))
         {
             HADRONS_ERROR(Size, "distil matrix size mismatch (got "
                 + std::to_string(hdim[0]) + "x" + std::to_string(hdim[1]) + ", expected "
@@ -367,7 +377,7 @@ void DistilMatrixIo<T>::load(Mat &v, const uint t, const std::string dataset_nam
     hdim.resize(dataspace.getSimpleExtentNdims());
     dataspace.getSimpleExtentDims(hdim.data());
     if ((ni_ * nj_ != 0) and
-        ((hdim[0] != ni_) or (hdim[0] != nj_)))
+        ((hdim[0] != ni_) or (hdim[1] != nj_)))
     {
         HADRONS_ERROR(Size, "distil matrix size mismatch (got "
             + std::to_string(hdim[0]) + "x" + std::to_string(hdim[1]) + ", expected "
@@ -437,7 +447,7 @@ private:
     const uint                          traj_;
     const uint                          nt_, nd_, nExt_, nStr_;
     const bool                          isExact_;
-    bool                                isInitFile_=false;
+    // bool                                isInitFile_=false;
     std::map<Side, uint>                dilSizeLS_;
     std::map<Side, DistillationNoise&>  distilNoise_;
     const uint                          dvBatchSize_ = DISTILVECTOR_TIME_BATCH_SIZE;
@@ -602,7 +612,7 @@ template <typename FImpl, typename T, typename Tio>
 DilutionMap DmfComputation<FImpl,T,Tio>::fetchDilutionMap(Side s)
 {
     DilutionMap m;
-    for(auto dil_idx : { Index::t, Index::l, Index::s })
+    for(Index dil_idx : { Index::t, Index::l, Index::s })
     for(uint it=0 ; it<distilNoise_.at(s).dilutionSize(dil_idx) ; it++)
     {
         std::vector<uint> temp = distilNoise_.at(s).dilutionPartition(dil_idx,it);
@@ -779,13 +789,13 @@ void DmfComputation<FImpl,T,Tio>
         uint D = iD + dv_idx_offset;
         makeDvLapSpinComponent(dv.at(s)[iD], n_idx, epack, s, D, peramb, tarray);
     }
-    if(isPhi(s) and vectorStem_.at(s).empty())
-    {
-        LOG(Message) << "-- Breakdown makeDvLapSpinCacheBlock -> makePhiComponent timers:" << std::endl;
-        LOG(Message) << "ExtractSliceLocal " << GET_TIMER("makePhiComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
-        LOG(Message) << "tmp3d_+=evec3d_ " << GET_TIMER("makePhiComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
-        LOG(Message) << "InsertSliceLocal " << GET_TIMER("makePhiComponent:InsertSliceLocal")/1e6 << " s"  << std::endl;
-    }
+    // if(isPhi(s) and vectorStem_.at(s).empty())
+    // {
+    //     LOG(Message) << "*** Breakdown makeDvLapSpinCacheBlock -> makePhiComponent timers:" << std::endl;
+    //     LOG(Message) << "* ExtractSliceLocal " << GET_TIMER("makePhiComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
+    //     LOG(Message) << "* tmp3d_+=evec3d_ " << GET_TIMER("makePhiComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
+    //     LOG(Message) << "* InsertSliceLocal " << GET_TIMER("makePhiComponent:InsertSliceLocal")/1e6 << " s"  << std::endl;
+    // }
     // else if(isRho(s))
     // {
     // }
@@ -806,13 +816,13 @@ void DmfComputation<FImpl,T,Tio>
     {
         makeDvLapSpinBlock(dv,n_idx,epack,s,dt_list[idt],idt,tarray,peramb);
     }
-    if(isPhi(s) and vectorStem_.at(s).empty())
-    {
-        LOG(Message) << "-- Breakdown makeDvLapSpinCacheBlock -> makePhiComponent timers:" << std::endl;
-        LOG(Message) << " ExtractSliceLocal " << GET_TIMER("makePhiComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
-        LOG(Message) << " tmp3d_+=evec3d_ " << GET_TIMER("makePhiComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
-        LOG(Message) << " InsertSliceLocal " << GET_TIMER("makePhiComponent:InsertSliceLocal")/1e6 << " s"  << std::endl;
-    }
+    // if(isPhi(s) and vectorStem_.at(s).empty())
+    // {
+        // LOG(Message) << "*** Breakdown makeDvLapSpinCacheBlock -> makePhiComponent timers:" << std::endl;
+        // LOG(Message) << "* ExtractSliceLocal " << GET_TIMER("makePhiComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
+        // LOG(Message) << "* tmp3d_+=evec3d_ " << GET_TIMER("makePhiComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
+        // LOG(Message) << "* InsertSliceLocal " << GET_TIMER("makePhiComponent:InsertSliceLocal")/1e6 << " s"  << std::endl;
+    // }
     // else if(isRho(s))
     // {
     // }
@@ -845,7 +855,7 @@ void DmfComputation<FImpl,T,Tio>
         LOG(Message) << "Phi(T=" << dt << ") : t={" << MDistil::timeslicesDump(n.dilutionPartition(Index::t, dt)) << "}" << std::endl;
     }
 
-    for (auto it : n.dilutionPartition(Index::t, dt))
+    for (uint it : n.dilutionPartition(Index::t, dt))
     {
         //compute at rel_t, insert at t=rel_t (full t-dil only)
         const uint rel_t = (it+delta_t)%nt_; // enabling delta_t!=0 only for non t-dilution at Module
@@ -906,7 +916,7 @@ void DmfComputation<FImpl,T,Tio>
         LOG(Message) << "Rho(T=" << dt << ") : t={" << MDistil::timeslicesDump(n.dilutionPartition(Index::t, dt)) << "}" << std::endl;
     }
     
-    for (auto it : n.dilutionPartition(Index::t, dt))
+    for (uint it : n.dilutionPartition(Index::t, dt))
     {
         //compute at rel_t, insert at t (for relative rho vector, delta_t should have been to 0 already, and so they're the same)
         const uint rel_t = it;
@@ -917,9 +927,9 @@ void DmfComputation<FImpl,T,Tio>
         const uint Nt_local = g_->LocalDimensions()[nd_ - 1];
         if( (rel_t>=Nt_first) and (rel_t<Nt_first+Nt_local) )
         {
-            for (auto ik : n.dilutionPartition(Index::l, dk))
+            for (uint ik : n.dilutionPartition(Index::l, dk))
             {
-                for (auto is : n.dilutionPartition(Index::s, ds))
+                for (uint is : n.dilutionPartition(Index::s, ds))
                 {
                     // LOG(Message) << "block(ik=" << ik << ",is=" << is << ")" << std::endl;
                     
@@ -981,13 +991,13 @@ void DmfComputation<FImpl,T,Tio>
             }
         }
     }
-    if(isRho(s))
-    {
-        LOG(Message) << "-- Breakdown makeRelativeDvLapSpinBlock -> makeRelativeRhoComponent timers:" << std::endl;
-        LOG(Message) << " ExtractSliceLocal " << GET_TIMER("makeRelativeRhoComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
-        LOG(Message) << " InsertSliceLocal " << GET_TIMER("makeRelativeRhoComponent:InsertSliceLocal")/1e6 << " s"  << std::endl;
-        LOG(Message) << " rho_component+=tmp4d_ " << GET_TIMER("makeRelativeRhoComponent:rho_component+=tmp4d_")/1e6 << " s"  << std::endl;
-    }
+    // if(isRho(s))
+    // {
+    //     LOG(Message) << "*** Breakdown makeRelativeDvLapSpinBlock -> makeRelativeRhoComponent timers:" << std::endl;
+    //     LOG(Message) << "* ExtractSliceLocal " << GET_TIMER("makeRelativeRhoComponent:ExtractSliceLocal")/1e6 << " s"  << std::endl;
+    //     LOG(Message) << "* InsertSliceLocal " << GET_TIMER("makeRelativeRhoComponent:InsertSliceLocal")/1e6 << " s"  << std::endl;
+    //     LOG(Message) << "* rho_component+=tmp4d_ " << GET_TIMER("makeRelativeRhoComponent:rho_component+=tmp4d_")/1e6 << " s"  << std::endl;
+    // }
 }
 
 template <typename FImpl, typename T, typename Tio>
@@ -1017,20 +1027,21 @@ void DmfComputation<FImpl,T,Tio>
 
     Side anchored_side = (Side::right==relative_side ? Side::left : Side::right);
 
-    for(auto delta_t : delta_t_list)
+    for(uint delta_t : delta_t_list) // this works with delta_t>0 only for full-dilution
     {        
         // ################################################
         // ############ COMPUTE RELATIVE BLOCK ############
         // ################################################
-        LOG(Message) << "Computing 'relative' distil vector block" << std::endl;
+        LOG(Message) << std::endl;
+        LOG(Message) << "Computing/loading " << sideToStr.at(relative_side) << " ('relative') distil vector for Tsrc= " << time_dil_source.at(relative_side) << std::endl;
         START_TIMER("distil vectors relative");
-        double start = usecond();
+        // double start = usecond();
         makeRelativeDvLapSpinBlock(dv, time_dil_source.at(relative_side), n_idx, epack, relative_side, delta_t, peramb, tarray);
-        double stop = usecond();
-        LOG(Message) << "relative block took "  << (double)(stop-start)/1.e6 << " s" << std::endl;
+        // double stop = usecond();
+        // LOG(Message) << "Relative block took " << (double)(stop-start)/1.e6 << " s" << std::endl;
         STOP_TIMER("distil vectors relative");
 
-        //loop over left dv batches
+        // trivial loop unless non-default DISTILVECTOR_TIME_BATCH_SIZE>1
         for (uint ibatchAnchored=0 ; ibatchAnchored<time_dil_source.at(anchored_side).size()/dvBatchSize_ ; ibatchAnchored++)
         { 
             std::vector<uint> batch_dtAnchored;
@@ -1039,6 +1050,7 @@ void DmfComputation<FImpl,T,Tio>
             {
                 uint Tanchored = batch_dtAnchored[idx_dtAnchored];
 
+                LOG(Message) << std::endl;
                 if(Side::right==relative_side)
                 {
                     LOG(Message) << "------------ " << Tanchored << " X ( " << MDistil::timeslicesDump(time_dil_source.at(relative_side)) << ") ------------" << std::endl; 
@@ -1048,211 +1060,201 @@ void DmfComputation<FImpl,T,Tio>
                     LOG(Message) << "------------ ( " << MDistil::timeslicesDump(time_dil_source.at(relative_side)) << ") X " << Tanchored << " ------------" << std::endl; 
                 }
                 LOG(Message) << "Time shift (deltaT) : " << delta_t << std::endl; 
-
-                uint nblockRel = dilSizeLS_.at(relative_side)/blockSize_ + (((dilSizeLS_.at(relative_side) % blockSize_) != 0) ? 1 : 0);
-                uint nblockAnchor = dilSizeLS_.at(anchored_side)/blockSize_ + (((dilSizeLS_.at(anchored_side) % blockSize_) != 0) ? 1 : 0);
-
-                // loop over blocks within the current time-dilution block
-                for(uint iRel=0 ; iRel<dilSizeLS_.at(relative_side) ; iRel+=blockSize_) //set according to memory size
-                for(uint jAnchor=0 ; jAnchor<dilSizeLS_.at(anchored_side) ; jAnchor+=blockSize_)
+                
+                // loop over IO-size blocks within the given time-dilution indices
+                LOG(Message) << "- Loop over Lap-spin IO-sized blocks on both sides"  << std::endl; 
+                for(uint iRel=0 ; iRel<dilSizeLS_.at(relative_side) ; iRel+=blockSize_)
                 {
-                    double flops=.0, bytes=.0, time_kernel=.0, time_gammat=.0, time_gsum=.0, nodes=g_->NodeCount();
-                    // rel_block_size is the size of the current block (indexed by iRel); N_i-iRel is the size of the possible remainder block
-                    uint rel_block_size = MIN(dilSizeLS_.at(relative_side)-iRel,blockSize_);
-                    uint anchor_block_size = MIN(dilSizeLS_.at(anchored_side)-jAnchor,blockSize_);
-
-                    //translate relative/anchored into left/right
-                    uint left_block_size = (Side::left==relative_side) ? rel_block_size : anchor_block_size;
-                    uint right_block_size = (Side::right==relative_side) ? rel_block_size : anchor_block_size;
-                    DistilMatrixSetIo<Tio> block(bBuf.data(), nExtStrLocal , nt_, left_block_size, right_block_size);
-
-                    LOG(Message) << "Distil matrix block " 
-                    << jAnchor/blockSize_ + nblockRel*iRel/blockSize_ + 1 
-                    << "/" << nblockRel*nblockAnchor << " [" << iRel << " .. " 
-                    << iRel+rel_block_size-1 << ", " << jAnchor << " .. " << jAnchor+anchor_block_size-1 << "] : [relative, anchor]" 
-                    << std::endl;
-
-                    // loop over cache blocks within the current block
-                    for(uint jjAnchor=0 ; jjAnchor<anchor_block_size ; jjAnchor+=cacheSize_)
-                    // cached dv computation needs to be done here, so it doesnt repeat unnecessarily on inner loop
-                    // jAnchor and jjAnchor needs to be associated with anchored_side: can be either left or right!
+                    // LOG(Message) << "-- Loop over Lap-spin IO-sized blocks on the " << sideToStr.at(anchored_side) << " ('anchored')"  << std::endl; 
+                    for(uint jAnchor=0 ; jAnchor<dilSizeLS_.at(anchored_side) ; jAnchor+=blockSize_)
                     {
-                        // need to make sure remaining code treats jAnchor,jjAnchor as the anchored side (not the right side necessarily)
-                        // this makes anchored side == cached side
+                        double flops=.0, bytes=.0, t_kernel=0., nodes=g_->NodeCount(), t_cachecopy=.0;
+                        // rel_block_size is the size of the current block (indexed by iRel): is either blockSize_ or the size of the remainder
+                        uint rel_block_size = MIN(dilSizeLS_.at(relative_side)-iRel,blockSize_);
+                        uint anchor_block_size = MIN(dilSizeLS_.at(anchored_side)-jAnchor,blockSize_);
 
-                        // ################################################
-                        // ############ COMPUTE ANCHORED BLOCK ############
-                        // ################################################
-                        LOG(Message) << "Computing 'anchored' distil vector cache-block" << std::endl;
-                        
-                        uint dv_idx_anchored_offset = Tanchored*dilSizeLS_.at(anchored_side) + jAnchor+jjAnchor; //offsetting time direction, then the block and the cache coordinates
-                        
-                        START_TIMER("distil vectors cache block (anchored)");
-                        start = usecond();
-                        makeDvLapSpinCacheBlock(dv,dv_idx_anchored_offset,n_idx,epack,anchored_side,peramb,tarray);
-                        stop = usecond();
-                        LOG(Message) << "anchored block took "  << (double)(stop-start)/1.e6 << " s" << std::endl;
-                        STOP_TIMER("distil vectors cache block (anchored)");
+                        //translate relative/anchored into left/right
+                        uint left_block_size = (Side::left==relative_side) ? rel_block_size : anchor_block_size;
+                        uint right_block_size = (Side::right==relative_side) ? rel_block_size : anchor_block_size;
+                        DistilMatrixSetIo<Tio> block(bBuf.data(), nExtStrLocal , nt_, left_block_size, right_block_size);
 
-                        LOG(Message) << "-- Breakdown kernel execution for each <relative block X anchored block> (both cache-sized): " << std::endl;
-                        for(uint iiRel=0 ; iiRel<rel_block_size ; iiRel+=cacheSize_)
+                        uint nBlockRel = dilSizeLS_.at(relative_side)/blockSize_ + (((dilSizeLS_.at(relative_side) % blockSize_) != 0) ? 1 : 0);
+                        uint nBlockAnchor = dilSizeLS_.at(anchored_side)/blockSize_ + (((dilSizeLS_.at(anchored_side) % blockSize_) != 0) ? 1 : 0);
+
+                        LOG(Message) << std::endl;
+                        LOG(Message) << "#### IO-size block " << jAnchor/blockSize_ + nBlockAnchor*iRel/blockSize_ + 1 
+                            << "/" << nBlockRel*nBlockAnchor <<  " ####" << std::endl;
+                        LOG(Message) << "Lap-spin index ranges [relative, anchor] = ["
+                        << iRel << " .. " << iRel+rel_block_size-1 << ", " 
+                        << jAnchor << " .. " << jAnchor+anchor_block_size-1 << "]" << std::endl;
+
+                        // loop over cache blocks within the current block
+                        LOG(Message) << "-- Loop over Lap-spin cache-sized subblocks on the " << sideToStr.at(anchored_side) << " ('anchored')"  << std::endl; 
+                        for(uint jjAnchor=0 ; jjAnchor<anchor_block_size ; jjAnchor+=cacheSize_)
                         {
-                            uint rel_cache_size = MIN(rel_block_size-iiRel,cacheSize_);      
-                            uint anchor_cache_size = MIN(anchor_block_size-jjAnchor,cacheSize_);
+                            // cached dv computation needs to be done here, so it doesnt repeat unnecessarily on inner loop
+                            // ################################################
+                            // ############ COMPUTE ANCHORED BLOCK ############
+                            // ################################################
+                            
+                            //offsetting time direction, then the block and the cache coordinates
+                            uint dv_idx_anchored_offset = Tanchored*dilSizeLS_.at(anchored_side) + jAnchor+jjAnchor; 
+                            
+                            START_TIMER("distil vectors cache block (anchored)");
+                            // start = usecond();
+                            makeDvLapSpinCacheBlock(dv,dv_idx_anchored_offset,n_idx,epack,anchored_side,peramb,tarray);
+                            // stop = usecond();
+                            STOP_TIMER("distil vectors cache block (anchored)");
 
-                            //translate relative/anchored into left/right
-                            uint left_cache_size = (Side::left==relative_side) ? rel_cache_size : anchor_cache_size;
-                            uint right_cache_size = (Side::right==relative_side) ? rel_cache_size : anchor_cache_size;
-                            DistilMatrixSetCache<T> cache(cBuf.data(), nExt_, nStr_, nt_, left_cache_size, right_cache_size);
+                            // LOG(Message) << "-- Breakdown kernel execution for each <relative block X anchored block>:" << std::endl;
+                            for(uint iiRel=0 ; iiRel<rel_block_size ; iiRel+=cacheSize_)
+                            {                                
+                                uint rel_cache_size = MIN(rel_block_size-iiRel,cacheSize_);      
+                                uint anchor_cache_size = MIN(anchor_block_size-jjAnchor,cacheSize_);
 
-                            //translate relative/anchored into left/right
-                            uint left_dv_idx_offset  = (Side::left==relative_side)  ? iRel+iiRel : 0;
-                            uint right_dv_idx_offset = (Side::right==relative_side) ? iRel+iiRel : 0;
+                                //translate relative/anchored into left/right
+                                uint left_cache_size = (Side::left==relative_side) ? rel_cache_size : anchor_cache_size;
+                                uint right_cache_size = (Side::right==relative_side) ? rel_cache_size : anchor_cache_size;
+                                DistilMatrixSetCache<T> cache(cBuf.data(), nExt_, nStr_, nt_, left_cache_size, right_cache_size);
 
-                            double timer = .0, timer_gammat = .0, timer_gsum = .0;
-                            START_TIMER("kernel");
-                            double start = usecond();
-                            A2Autils<FImpl>::MesonField(cache, &dv.at(Side::left)[left_dv_idx_offset], &dv.at(Side::right)[right_dv_idx_offset], gamma, ph, nd_ - 1, &timer);
-                            double stop = usecond();
-                            STOP_TIMER("kernel");
-                            LOG(Message) << "Kernel execution on cache block ("<<left_dv_idx_offset<<","<<right_dv_idx_offset<<") : " << (double)(stop-start)/1e6 << " s" << std::endl;
+                                // get offset on relative dv (anchored side is not bc it already contains exactly what will be used)
+                                uint left_dv_idx_offset  = (Side::left==relative_side)  ? iRel+iiRel : 0;
+                                uint right_dv_idx_offset = (Side::right==relative_side) ? iRel+iiRel : 0;
 
-                            const double flops_tmp = vol*(2*8.0+6.0+8.0*nExt_)*rel_cache_size*anchor_cache_size*nStr_;
-                            const double bytes_tmp = vol*(12.0*sizeof(T))*rel_cache_size*anchor_cache_size
-                                                    +  vol*(2.0*sizeof(T)*nExt_)*rel_cache_size*anchor_cache_size*nStr_;
-                                                    
-                            // LOG(Message) << "Partial kernel perf (flops) " << flops_tmp/timer/1.0e3/nodes 
-                            //             << " Gflop/s/node " << std::endl;
-                            // LOG(Message) << "Partial kernel perf (read) " << bytes_tmp/timer*1.0e6/1024/1024/1024/nodes
-                            //             << " GB/s/node "  << std::endl;
+                                START_TIMER("kernel");
+                                double t_kernel_tmp = -usecond();
+                                A2Autils<FImpl>::MesonField(cache, &dv.at(Side::left)[left_dv_idx_offset], &dv.at(Side::right)[right_dv_idx_offset], 
+                                    gamma, ph, nd_ - 1);
+                                t_kernel_tmp += usecond();
+                                STOP_TIMER("kernel");
+                                
+                                uint nCacheRel = rel_block_size/cacheSize_ + (((rel_block_size % cacheSize_) != 0) ? 1 : 0);
+                                uint nCacheAnchor = anchor_block_size/cacheSize_ + (((anchor_block_size % cacheSize_) != 0) ? 1 : 0);
+                                LOG(Message) << "--- Kernel on subblock "
+                                    << iiRel/cacheSize_ + nCacheRel*jjAnchor/cacheSize_ + 1 << "/" << nCacheRel*nCacheAnchor
+                                    << " (" << (double)(t_kernel_tmp)/1e6 << "s)" << std::endl;
 
-                            // LOG(Message) << "Partial t_kernel = " << timer/1.0e6 << " s" << std::endl;
-                            // LOG(Message) << "Partial t_gammat = " << timer_gammat/1.0e6 << " s" << std::endl;
-                            // LOG(Message) << "Partial t_gsum = " << timer_gsum/1.0e6 << " s"  << std::endl;
+                                const double flops_tmp = vol*(2*8.0+6.0+8.0*nExt_)*rel_cache_size*anchor_cache_size*nStr_;
+                                const double bytes_tmp = vol*(12.0*sizeof(T))*rel_cache_size*anchor_cache_size
+                                                        +  vol*(2.0*sizeof(T)*nExt_)*rel_cache_size*anchor_cache_size*nStr_;
 
-                            time_kernel += timer;
-                            time_gammat += timer_gammat;
-                            time_gsum += timer_gsum;
-                            flops += flops_tmp;
-                            bytes += bytes_tmp;
+                                flops += flops_tmp;
+                                bytes += bytes_tmp;
 
-                            //// copy cache to ioblock
+                                //// copy cache to ioblock
+                                //translate relative/anchored into left/right
+                                uint left_ii   = (Side::left==relative_side)  ? iiRel : jjAnchor;
+                                uint right_jj  = (Side::right==relative_side) ? iiRel : jjAnchor;
 
-                            //translate relative/anchored into left/right
-                            uint left_ii   = (Side::left==relative_side)  ? iiRel : jjAnchor;
-                            uint right_jj  = (Side::right==relative_side) ? iiRel : jjAnchor;
-
-                            start = usecond();
-                            g_->Barrier();
-                            START_TIMER("cache copy");
-                            thread_for_collapse(4,iextstr_local,nExtStrLocal,{
-                            for(uint t=0;t<nt_;t++)
-                            for(uint iii=0;iii<left_cache_size;iii++)
-                            for(uint jjj=0;jjj<right_cache_size;jjj++)
-                            {
-                                const uint iextstr = iextstr_local + i_rank * nExtStrLocal + (g_->IsBoss() ? 0 : nExtStr%N_ranks );
-                                const uint iext = iextstr/nStr_;
-                                const uint istr = iextstr%nStr_;
-                                block(iextstr_local,t,left_ii+iii,right_jj+jjj) = cache(iext,istr,t,iii,jjj);
-                            }
-                            });
-                            STOP_TIMER("cache copy");
-                            g_->Barrier();
-                            stop = usecond();
-                            LOG(Message) << "Cache blocks copied to IO block (waited all tasks) in : " << (double)(stop-start)/1e6 << " s" << std::endl;
-                        }
-                    }
-
-                    LOG(Message) << "Kernel perf (flops) " << flops/time_kernel/1.0e3/nodes 
-                                << " Gflop/s/node " << std::endl;
-                    LOG(Message) << "Kernel perf (read) " << bytes/time_kernel*1.0e6/1024/1024/1024/nodes
-                                << " GB/s/node "  << std::endl;
-                    blockCounter_++;
-                    blockFlops_ += flops/time_kernel/1.0e3/nodes ;
-                    blockBytes_ += bytes/time_kernel*1.0e6/1024/1024/1024/nodes;
-
-                    LOG(Message) << "Total t_kernel = " << time_kernel/1.0e6 << " s" << std::endl;
-                    LOG(Message) << "Total t_gammat = " << time_gammat/1.0e6 << " s" << std::endl;
-                    LOG(Message) << "Total t_gsum = " << time_gsum/1.0e6 << " s"  << std::endl;
-
-                    // io section
-                    DistillationNoise& n_rel = distilNoise_.at(relative_side);
-                    LOG(Message) << "Starting parallel IO. Rank count=" << N_ranks << std::endl;
-                    // for(uint it=0 ; it<time_dil_source.at(relative_side).size() ; it++)
-                    for (auto dt : time_dil_source.at(relative_side))
-                    {
-                        for(auto it : n_rel.dilutionPartition(Index::t, dt))
-                        {
-                            const uint t = (it + delta_t)%nt_;
-                            const uint Trelative = dt; //time_dil_source.at(relative_side)[it];
-                            // uint t = (time_dil_source.at(relative_side)[it] + delta_t)%nt_;
-
-                            DistilMatrixSetTimeSliceIo<Tio> block_relative(bBuf.data(), nExtStrLocal, rel_block_size, anchor_block_size);
-                            std::string dataset_name = std::to_string( (Side::right==relative_side) ? Tanchored : Trelative ) 
-                                + "-" + std::to_string( (Side::right==relative_side) ? Trelative : Tanchored );
-
-                            std::vector<uint> relative_partition = distilNoise_.at(relative_side).dilutionPartition(Index::t,Trelative);
-                            std::vector<uint> anchored_partition = distilNoise_.at(anchored_side).dilutionPartition(Index::t,Tanchored);
-
-                            if( !( isRho(relative_side) and std::count(relative_partition.begin(), relative_partition.end(), t)==0  ) 
-                                and !(isRho(anchored_side) and std::count(anchored_partition.begin(), anchored_partition.end(), t)==0) ) // if either side is rho, check t is in the dil partition
-                            {
-                                LOG(Message)    << "Saving block " << dataset_name << " , t=" << t << std::endl;
-
-                                double ioTime = -GET_TIMER("IO: write block");
-                                START_TIMER("IO: total");
-#ifdef HADRONS_DISTIL_PARALLEL_IO
+                                t_cachecopy -= usecond();
                                 g_->Barrier();
-                                for(uint iextstr_local=0 ; iextstr_local<nExtStrLocal ; iextstr_local++)
+                                START_TIMER("cache copy");
+                                thread_for_collapse(4,iextstr_local,nExtStrLocal,{
+                                for(uint t=0;t<nt_;t++)
+                                for(uint iii=0;iii<left_cache_size;iii++)
+                                for(uint jjj=0;jjj<right_cache_size;jjj++)
                                 {
                                     const uint iextstr = iextstr_local + i_rank * nExtStrLocal + (g_->IsBoss() ? 0 : nExtStr%N_ranks );
                                     const uint iext = iextstr/nStr_;
                                     const uint istr = iextstr%nStr_;
-
-                                    // io object
-                                    DistilMatrixIo<HADRONS_DISTIL_IO_TYPE> matrix_io(filenameDmfFn(iext, istr, n_idx.at(Side::left), n_idx.at(Side::right)),
-                                            DISTIL_MATRIX_NAME, nt_, dilSizeLS_.at(Side::left), dilSizeLS_.at(Side::right));
-
-                                    // this check is not needed anymore as initFile() checks for file existence anyways 
-                                    // //executes once per file
-                                    // if( ( Tanchored==time_dil_source.at(anchored_side).front() ) and    //first time-dilution idx at one side
-                                    //     ( Trelative==time_dil_source.at(relative_side).front() ) and    // same as above for the other side
-                                    //     ( t==(time_dil_source.at(relative_side).front() + delta_t_list.front())%nt_ ) and    //first time slice
-                                    //     (iRel==0) and (jAnchor==0) )  //first IO block
-                                    // {
-                                        //fetch metadata
-                                        DistilMesonFieldMetadata<FImpl> md = metadataDmfFn(iext,istr,n_idx.at(Side::left),n_idx.at(Side::right),
-                                                                fetchDilutionMap(Side::left),fetchDilutionMap(Side::right));
-                                        //init file and write metadata
-                                        START_TIMER("IO: file creation");
-                                        matrix_io.initFile(md);
-                                        STOP_TIMER("IO: file creation");
-                                    // }
-                                    
-                                    //translate relative/anchored into left/right
-                                    uint left_i  = (Side::left==relative_side)  ? iRel : jAnchor;
-                                    uint right_j  = (Side::right==relative_side)  ? iRel : jAnchor;
-                                    START_TIMER("IO: write block");
-                                    matrix_io.saveBlock(block_relative, iextstr_local, left_i, right_j, dataset_name, t, blockSize_);
-                                    STOP_TIMER("IO: write block");
+                                    block(iextstr_local,t,left_ii+iii,right_jj+jjj) = cache(iext,istr,t,iii,jjj);
                                 }
+                                });
+                                STOP_TIMER("cache copy");
                                 g_->Barrier();
-#else
-    HADRONS_ERROR(Implementation, "DistilMesonField serial IO not implemented.");
-#endif              
-                                STOP_TIMER("IO: total");
-                                ioTime    += GET_TIMER("IO: write block");
-                                uint bytesBlockSize  = static_cast<double>(nExt_*nStr_*rel_block_size*anchor_block_size*sizeof(Tio));
-                                double iospeed = bytesBlockSize/ioTime*1.0e6/1024/1024;
-                                LOG(Message)    << "HDF5 IO done " << sizeString(bytesBlockSize) << " in "
-                                                << ioTime  << " us (" << iospeed << " MB/s)" << std::endl;
-                                blockIoSpeed_ += iospeed;
+                                t_cachecopy += usecond();
                             }
                         }
+                        // LOG(Message) << "Kernel perf (flops) " << flops/t_kernel/1.0e3/nodes 
+                        //             << " Gflop/s/node " << std::endl;
+                        // LOG(Message) << "Kernel perf (read) " << bytes/t_kernel*1.0e6/1024/1024/1024/nodes
+                        //             << " GB/s/node "  << std::endl;
+                        blockCounter_++;
+                        blockFlops_ += flops/t_kernel/1.0e3/nodes ;
+                        blockBytes_ += bytes/t_kernel*1.0e6/1024/1024/1024/nodes;
+
+                        LOG(Message) << "IO-size block computation complete" << std::endl;
+                        LOG(Message) << "Cache to IO copy complete, waited all tasks (" << (double)t_cachecopy/1e6 << "s)" << std::endl;
+
+                        // io section
+                        DistillationNoise& n_rel = distilNoise_.at(relative_side);
+                        LOG(Message) << "#### Parallel IO ####" << std::endl;
+                        LOG(Message) << "Rank count=" << N_ranks << std::endl;
+                        // for(uint it=0 ; it<time_dil_source.at(relative_side).size() ; it++)
+                        for (uint dt : time_dil_source.at(relative_side))
+                        {
+                            for(uint it : n_rel.dilutionPartition(Index::t, dt))
+                            {
+                                const uint t = (it + delta_t)%nt_;
+                                const uint Trelative = dt;
+                                
+                                const uint blockdimleft = (Side::left==relative_side) ? rel_block_size : anchor_block_size;
+                                const uint blockdimright = (Side::right==relative_side) ? rel_block_size : anchor_block_size;
+                                DistilMatrixSetTimeSliceIo<Tio> block_relative(bBuf.data(), nExtStrLocal, blockdimleft, blockdimright);
+                                std::string dataset_name = std::to_string( (Side::right==relative_side) ? Tanchored : Trelative ) 
+                                    + "-" + std::to_string( (Side::right==relative_side) ? Trelative : Tanchored );
+
+                                std::vector<uint> relative_partition = distilNoise_.at(relative_side).dilutionPartition(Index::t,Trelative);
+                                std::vector<uint> anchored_partition = distilNoise_.at(anchored_side).dilutionPartition(Index::t,Tanchored);
+
+                                // if either side is rho, check t is in the dil. partition on that side
+                                if( !( isRho(relative_side) and std::count(relative_partition.begin(), relative_partition.end(), t)==0  ) 
+                                    and !(isRho(anchored_side) and std::count(anchored_partition.begin(), anchored_partition.end(), t)==0) )
+                                {
+                                    LOG(Message)    << "Saving block " << dataset_name << " , t=" << t << std::endl;
+                                    double ioTime = -GET_TIMER("IO: write block");
+                                    START_TIMER("IO: total");
+    #ifdef HADRONS_DISTIL_PARALLEL_IO
+                                    g_->Barrier();
+                                    for(uint iextstr_local=0 ; iextstr_local<nExtStrLocal ; iextstr_local++)
+                                    {
+                                        const uint iextstr = iextstr_local + i_rank * nExtStrLocal + (g_->IsBoss() ? 0 : nExtStr%N_ranks );
+                                        const uint iext = iextstr/nStr_;
+                                        const uint istr = iextstr%nStr_;
+
+                                        // io object
+                                        DistilMatrixIo<HADRONS_DISTIL_IO_TYPE> matrix_io(filenameDmfFn(iext, istr, n_idx.at(Side::left), n_idx.at(Side::right)),
+                                                DISTIL_MATRIX_NAME, nt_, dilSizeLS_.at(Side::left), dilSizeLS_.at(Side::right));
+
+                                        //executes once per file
+                                        if( ( Tanchored==time_dil_source.at(anchored_side).front() ) and    //first time-dilution idx at one side
+                                            ( Trelative==time_dil_source.at(relative_side).front() ) and    // same as above for the other side
+                                            ( t==(time_dil_source.at(relative_side).front() + delta_t_list.front())%nt_ ) and    //first time slice
+                                            (iRel==0) and (jAnchor==0) )  //first IO block
+                                        {
+                                            //fetch metadata
+                                            DistilMesonFieldMetadata<FImpl> md = metadataDmfFn(iext,istr,n_idx.at(Side::left),n_idx.at(Side::right),
+                                                                    fetchDilutionMap(Side::left),fetchDilutionMap(Side::right));
+                                            //init file and write metadata
+                                            START_TIMER("IO: file creation");
+                                            matrix_io.initFile(md, (iextstr==0));
+                                            STOP_TIMER("IO: file creation");
+                                        }
+                                        
+                                        //translate relative/anchored into left/right
+                                        uint left_i  = (Side::left==relative_side)  ? iRel : jAnchor;
+                                        uint right_j  = (Side::right==relative_side)  ? iRel : jAnchor;
+                                        START_TIMER("IO: write block");
+                                        matrix_io.saveBlock(block_relative, iextstr_local, left_i, right_j, dataset_name, t, blockSize_);
+                                        STOP_TIMER("IO: write block");
+                                    }
+                                    g_->Barrier();
+    #else
+        HADRONS_ERROR(Implementation, "DistilMesonField serial IO not implemented.");
+    #endif              
+                                    STOP_TIMER("IO: total");
+                                    ioTime    += GET_TIMER("IO: write block");
+                                    uint bytesBlockSize  = static_cast<double>(nExt_*nStr_*rel_block_size*anchor_block_size*sizeof(Tio));
+                                    double iospeed = bytesBlockSize/ioTime*1.0e6/1024/1024;
+                                    LOG(Message)    << "HDF5 IO done " << sizeString(bytesBlockSize) << " in "
+                                                    << ioTime  << " us (" << iospeed << " MB/s)" << std::endl;
+                                    blockIoSpeed_ += iospeed;
+                                }
+                            }
+                        }
+                        LOG(Message) << "IO completed" << std::endl;
                     }
                 }
-
-                
             }
         }
     }
@@ -1283,21 +1285,21 @@ void DmfComputation<FImpl,T,Tio>
     const uint nExtStrLocal = g_->IsBoss() ? nExtStr/N_ranks 
                                         + nExtStr%N_ranks : nExtStr/N_ranks; // put remainder in boss node
 
-    //loop over left dv batches
-    for (uint ibatchL=0 ; ibatchL<time_dil_source.at(Side::left).size()/dvBatchSize_ ; ibatchL++)   //loop over left dv batches
+    // trivial loop unless non-default DISTILVECTOR_TIME_BATCH_SIZE>1
+    for (uint ibatchL=0 ; ibatchL<time_dil_source.at(Side::left).size()/dvBatchSize_ ; ibatchL++)
     {
-        LOG(Message) << "Computing (or loading) left distil vector:" << std::endl; 
+        LOG(Message) << std::endl;
+        LOG(Message) << "Computing/loading left distil vector for Tsrc= " << time_dil_source.at(Side::left) << std::endl; 
         std::vector<uint> batch_dtL = fetchDvBatchIdxs(ibatchL,time_dil_source.at(Side::left));
         START_TIMER("distil vectors left");
-        double start = usecond();
         makeDvLapSpinBatch(dv, n_idx, epack, Side::left, batch_dtL, peramb, tarray);
-        double stop = usecond();
-        LOG(Message) << "left vector took "  << (double)(stop-start)/1.e6 << " s" << std::endl;
         STOP_TIMER("distil vectors left");
+
         for (uint idtL=0 ; idtL<batch_dtL.size() ; idtL++)
         {
             uint dtL = batch_dtL[idtL];
-            for (uint ibatchR=0 ; ibatchR<time_dil_source.at(Side::right).size()/dvBatchSize_ ; ibatchR++)  //loop over right dv batches
+            // trivial loop unless non-default DISTILVECTOR_TIME_BATCH_SIZE>1
+            for (uint ibatchR=0 ; ibatchR<time_dil_source.at(Side::right).size()/dvBatchSize_ ; ibatchR++)
             {
                 std::vector<uint> batch_dtR = fetchDvBatchIdxs(ibatchR,time_dil_source.at(Side::right), diag_shift);
                 for (uint idtR=0 ; idtR<batch_dtR.size() ; idtR++)
@@ -1323,46 +1325,45 @@ void DmfComputation<FImpl,T,Tio>
                                         time_partition.at(Side::right).begin(), time_partition.at(Side::right).end(),
                                         std::back_inserter(ts_intersection));
 
-                    // only execute when partitions have at least one time slice in common; only computes diagonal (up to diag_shift) when onlydiag true
+                    // only execute when partitions have at least one time slice in common; only computes diagonal (up to diag_shift) when onlyDiag is on
                     if( !ts_intersection.empty() and 
                         ( !only_diag or ((dtL+diag_shift)%distilNoise_.at(Side::right).dilutionSize(Index::t)==dtR) ) )
                     {
-                        LOG(Message) << "------------ time-dilution block " << dtL << "-" << dtR << " ------------------------" << std::endl; 
-                        
-                        uint nblocki = dilSizeLS_.at(Side::left)/blockSize_ + (((dilSizeLS_.at(Side::left) % blockSize_) != 0) ? 1 : 0);
-                        uint nblockj = dilSizeLS_.at(Side::right)/blockSize_ + (((dilSizeLS_.at(Side::right) % blockSize_) != 0) ? 1 : 0);
+                        LOG(Message) << std::endl;
+                        LOG(Message) << "------------ time-dilution pair " << dtL << "-" << dtR << " ------------------------" << std::endl; 
 
                         // loop over blocks within the current time-dilution block
+                        LOG(Message) << "- Loop over Lap-spin IO-sized blocks on both sides"  << std::endl; 
                         for(uint i=0 ; i<dilSizeLS_.at(Side::left) ; i+=blockSize_) //set according to memory size
                         for(uint j=0 ; j<dilSizeLS_.at(Side::right) ; j+=blockSize_)
                         {
-                            double flops=.0, bytes=.0, time_kernel=.0, time_gammat=.0, time_gsum=.0, nodes=g_->NodeCount();
+                            double flops=.0, bytes=.0, t_kernel=0., nodes=g_->NodeCount(), t_cachecopy=.0;
+
                             // iblock_size is the size of the current block (indexed by i); N_i-i is the size of the possible remainder block
                             uint iblock_size = MIN(dilSizeLS_.at(Side::left)-i,blockSize_);
                             uint jblock_size = MIN(dilSizeLS_.at(Side::right)-j,blockSize_);
-                            
                             DistilMatrixSetIo<Tio> block(bBuf.data(), nExtStrLocal , nt_, iblock_size, jblock_size);
 
-                            LOG(Message) << "Distil matrix block " 
-                            << j/blockSize_ + nblocki*i/blockSize_ + 1 
-                            << "/" << nblocki*nblockj << " [" << i << " .. " 
+                            uint nBlocki = dilSizeLS_.at(Side::left)/blockSize_ + (((dilSizeLS_.at(Side::left) % blockSize_) != 0) ? 1 : 0);
+                            uint nBlockj = dilSizeLS_.at(Side::right)/blockSize_ + (((dilSizeLS_.at(Side::right) % blockSize_) != 0) ? 1 : 0);
+
+                            LOG(Message) << std::endl;
+                            LOG(Message) << "#### IO-size block " 
+                            << j/blockSize_ + nBlocki*i/blockSize_ + 1 
+                            << "/" << nBlocki*nBlockj << " ####" << std::endl;
+                            LOG(Message) << "Lap-spin index ranges [" << i << " .. " 
                             << i+iblock_size-1 << ", " << j << " .. " << j+jblock_size-1 << "]" 
                             << std::endl;
 
+                            LOG(Message) << "-- Loop over Lap-spin cache-sized subblocks on the right"  << std::endl; 
                             // loop over cache blocks within the current block
                             for(uint jj=0 ; jj<jblock_size ; jj+=cacheSize_)
                             {
-                                LOG(Message) << "Computing (or loading) right distil vector block " << j+jj << std::endl;
-
                                 uint dvR_idx_offset = dtR*dilSizeLS_.at(Side::right) +j+jj;
                                 START_TIMER("distil vectors right");
-                                start = usecond();
                                 makeDvLapSpinCacheBlock(dv,dvR_idx_offset,n_idx,epack,Side::right,peramb,tarray);
-                                stop = usecond();
-                                LOG(Message) << "right vector took "  << (double)(stop-start)/1.e6 << " s" << std::endl;
                                 STOP_TIMER("distil vectors right");
 
-                                LOG(Message) << "-- Breakdown kernel execution for each <left block X right block> (both cache-sized): " << std::endl;
                                 for(uint ii=0 ; ii<iblock_size ; ii+=cacheSize_)
                                 {
                                     uint icache_size = MIN(iblock_size-ii,cacheSize_);      
@@ -1372,34 +1373,29 @@ void DmfComputation<FImpl,T,Tio>
                                     
                                     uint dv_idxL = idtL*dilSizeLS_.at(Side::left) +i+ii;
                                     
-                                    double timer = .0, timer_gammat = .0, timer_gsum = .0;
                                     START_TIMER("kernel");
-                                    double start = usecond();
-                                    A2Autils<FImpl>::MesonField(cache, &dv.at(Side::left)[dv_idxL], &dv.at(Side::right)[0], gamma, ph, nd_ - 1, &timer, &timer_gammat, &timer_gsum); 
+                                    double t_kernel_tmp = -usecond();
+                                    A2Autils<FImpl>::MesonField(cache, &dv.at(Side::left)[dv_idxL], &dv.at(Side::right)[0], gamma, ph, nd_ - 1); 
+                                    t_kernel_tmp += usecond();
                                     STOP_TIMER("kernel");
-                                    double stop = usecond();
-                                    LOG(Message) << "Kernel execution on cache block took " << (double)(stop-start)/1e6 << " s" << std::endl;
+
+                                    uint nCacheLeft = iblock_size/cacheSize_ + (((iblock_size % cacheSize_) != 0) ? 1 : 0);
+                                    uint nCacheRight = jblock_size/cacheSize_ + (((jblock_size % cacheSize_) != 0) ? 1 : 0);
+                                    
+                                    LOG(Message) << "--- Kernel on subblock "
+                                    << ii/cacheSize_ + nCacheLeft*jj/cacheSize_ + 1 << "/" << nCacheLeft*nCacheRight
+                                    << " (" << (double)(t_kernel_tmp)/1e6 << "s)" << std::endl;
 
                                     const double flops_tmp = vol*(2*8.0+6.0+8.0*nExt_)*icache_size*jcache_size*nStr_;
                                     const double bytes_tmp = vol*(12.0*sizeof(T))*icache_size*jcache_size
                                                         +  vol*(2.0*sizeof(T)*nExt_)*icache_size*jcache_size*nStr_;
-                                                            
-                                    LOG(Message) << "Partial kernel perf (flops) " << flops_tmp/timer/1.0e3/nodes 
-                                                << " Gflop/s/node " << std::endl;
-                                    LOG(Message) << "Partial kernel perf (read) " << bytes_tmp/timer*1.0e6/1024/1024/1024/nodes
-                                                << " GB/s/node "  << std::endl;
-
-                                    LOG(Message) << "Partial t_kernel = " << timer/1e6/1e6 << " s" << std::endl;
-                                    LOG(Message) << "Partial t_gammat = " << timer_gammat/1e6/1e6 << " s" << std::endl;
-                                    LOG(Message) << "Partial t_gsum = " << timer_gsum/1e6/1e6 << " s"  << std::endl;
-
-                                    time_kernel += timer;
-                                    time_gammat += timer_gammat;
-                                    time_gsum += timer_gsum;
+                                    
                                     flops += flops_tmp;
                                     bytes += bytes_tmp;
+                                    t_kernel += t_kernel_tmp;
 
                                     // copy cache to ioblock
+                                    t_cachecopy -= usecond();
                                     g_->Barrier();
                                     START_TIMER("cache copy");
                                     uint ts_size = ts_intersection.size();
@@ -1416,23 +1412,23 @@ void DmfComputation<FImpl,T,Tio>
                                     });
                                     STOP_TIMER("cache copy");
                                     g_->Barrier();
+                                    t_cachecopy += usecond();
                                 }
                             }
-                            LOG(Message) << "Kernel perf (flops) " << flops/time_kernel/1.0e3/nodes 
-                                        << " Gflop/s/node " << std::endl;
-                            LOG(Message) << "Kernel perf (read) " << bytes/time_kernel*1.0e6/1024/1024/1024/nodes
-                                        << " GB/s/node "  << std::endl;
+                            // LOG(Message) << "Kernel perf (flops) " << flops/t_kernel/1.0e3/nodes 
+                            //             << " Gflop/s/node " << std::endl;
+                            // LOG(Message) << "Kernel perf (read) " << bytes/t_kernel*1.0e6/1024/1024/1024/nodes
+                            //             << " GB/s/node "  << std::endl;
                             blockCounter_++;
-                            blockFlops_ += flops/time_kernel/1.0e3/nodes ;
-                            blockBytes_ += bytes/time_kernel*1.0e6/1024/1024/1024/nodes;
+                            blockFlops_ += flops/t_kernel/1.0e3/nodes ;
+                            blockBytes_ += bytes/t_kernel*1.0e6/1024/1024/1024/nodes;
 
-                            LOG(Message) << "Total t_kernel = " << time_kernel/1e6/1e6 << " s" << std::endl;
-                            LOG(Message) << "Total t_gammat = " << time_gammat/1e6/1e6 << " s" << std::endl;
-                            LOG(Message) << "Total t_gsum = " << time_gsum/1e6/1e6 << " s"  << std::endl;
+                            LOG(Message) << "IO-size block computation complete" << std::endl;
+                            LOG(Message) << "Cache to IO copy complete, waited all tasks (" << (double)t_cachecopy/1e6 << "s)" << std::endl;
 
                             // io section
-                            LOG(Message) << "Starting parallel IO. Rank count=" << N_ranks << std::endl;
-                            LOG(Message) << "Saving time slices : " << MDistil::timeslicesDump(ts_intersection) << std::endl;
+                            LOG(Message) << "#### Parallel IO ####" << std::endl;
+                            LOG(Message) << "Rank count=" << N_ranks << std::endl;
                             for(uint t=0 ; t<nt_ ; t++)
                             {
                                 // TODO: generalise to dilution
@@ -1473,7 +1469,7 @@ void DmfComputation<FImpl,T,Tio>
                                                                     fetchDilutionMap(Side::left),fetchDilutionMap(Side::right));
                                             //init file and write metadata
                                             START_TIMER("IO: file creation");
-                                            matrix_io.initFile(md);
+                                            matrix_io.initFile(md, (iextstr==0));
                                             STOP_TIMER("IO: file creation");
                                         }
                                         START_TIMER("IO: write block");
@@ -1493,6 +1489,7 @@ void DmfComputation<FImpl,T,Tio>
                                     blockIoSpeed_ += iospeed;
                                 }
                             }
+                            LOG(Message) << "IO completed" << std::endl;
                         }
                     }
                 }

@@ -455,6 +455,7 @@ void TDistilMesonFieldRelative<FImpl>::execute(void)
     }
     stopTimer("momentum phases");
     
+    LOG(Message) << "Starting DistilMesonFieldRelative" << std::endl;
     if(isExact_)
     {
         LOG(Message) << "Exact distillation" << std::endl;
@@ -483,7 +484,7 @@ void TDistilMesonFieldRelative<FImpl>::execute(void)
     {
         LOG(Message) << " " << g << std::endl;
     }
-    LOG(Message) << "Block size : " << par().blockSize << std::endl;
+    LOG(Message) << "IO Block size : " << par().blockSize << std::endl;
     LOG(Message) << "Cache block size : " << par().cacheSize << std::endl;
 
     //execution
@@ -508,6 +509,7 @@ void TDistilMesonFieldRelative<FImpl>::execute(void)
         {
             computation.executeRelative(filenameDmfFn, metadataDmfFn, block_buf, cache_buf, gamma_, dist_vecs, noise_idx, phase, time_sources, epack, this, relative_side_, delta_t_list_);
         }
+        LOG(Message) << std::endl;
         LOG(Message) << "Meson fields saved to " << outputMFPath_ << std::endl;
     }
     LOG(Message) << "A2AUtils::MesonField kernel executed " << computation.blockCounter_ << " times over "
