@@ -437,6 +437,11 @@ void TDistilMesonFieldRelative<FImpl>::execute(void)
         for(auto &npair : par().noisePairs)
         {
             noise_pairs.push_back(strToVec<unsigned int>(npair));
+            if( (envHasDerivedType(DistillationNoise, ExactDistillationPolicy<FImpl>, par().leftNoise) and noise_pairs.back()[0]!=0) 
+                or (envHasDerivedType(DistillationNoise, ExactDistillationPolicy<FImpl>, par().rightNoise) and noise_pairs.back()[1]!=0) )
+            {
+                HADRONS_ERROR(Argument,"Exact distillation needs to have noise index =0");
+            }
         }
     }
 
