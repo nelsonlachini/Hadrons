@@ -520,9 +520,10 @@ private:
                             std::vector<uint>                       dt_list,
                             std::map<Side, MDistil::PerambTensor&>  peramb,
                             TimerArray*                                 tarray);
-    std::vector<uint> fetchDvBatchIdxs(uint                  ibatch,
-                                        std::vector<uint>    time_dil_sources,
-                                        uint                 shift=0);
+    std::vector<uint> fetchDvBatchIdxs(uint                                ibatch,
+                                       std::map<Side, std::vector<uint>>   time_dil_sources,
+                                       Side                                s,
+                                       uint                                shift=0);
     void makeRelativePhiComponent(FermionField&                         phi_component,
                                 DistillationNoise&                      n,
                                 const uint                              n_idx,
@@ -636,11 +637,11 @@ bool DmfComputation<FImpl,T,Tio>::isRho(Side s)
 // fetch time dilution indices (sources) in dv batch ibatch
 template <typename FImpl, typename T, typename Tio>
 std::vector<uint> DmfComputation<FImpl,T,Tio>
-::fetchDvBatchIdxs(uint ibatch, std::vector<uint> time_dil_sources, const uint shift)
+::fetchDvBatchIdxs(uint ibatch, std::map<Side, std::vector<uint>> time_dil_sources, Side s, const uint shift)
 {
     std::vector<uint> batch_dt;
     for(uint dt=ibatch*dvBatchSize_; dt<(ibatch+1)*dvBatchSize_; dt++){
-        batch_dt.push_back( (time_dil_sources[dt]+shift)%distilNoise_.at(Side::right).dilutionSize(Index::t) );
+        batch_dt.push_back( (time_dil_sources.at(s)[dt]+shift)%distilNoise_.at(s).dilutionSize(Index::t));
     }
     return batch_dt;
 }
@@ -1045,7 +1046,7 @@ void DmfComputation<FImpl,T,Tio>
         for (uint ibatchAnchored=0 ; ibatchAnchored<time_dil_source.at(anchored_side).size()/dvBatchSize_ ; ibatchAnchored++)
         { 
             std::vector<uint> batch_dtAnchored;
-            batch_dtAnchored = fetchDvBatchIdxs(ibatchAnchored,time_dil_source.at(anchored_side));
+            batch_dtAnchored = fetchDvBatchIdxs(ibatchAnchored,time_dil_source,anchored_side);
             for (uint idx_dtAnchored=0 ; idx_dtAnchored<batch_dtAnchored.size() ; idx_dtAnchored++)
             {
                 uint Tanchored = batch_dtAnchored[idx_dtAnchored];
@@ -1290,7 +1291,7 @@ void DmfComputation<FImpl,T,Tio>
     {
         LOG(Message) << std::endl;
         LOG(Message) << "Computing/loading left distil vector for Tsrc= " << time_dil_source.at(Side::left) << std::endl; 
-        std::vector<uint> batch_dtL = fetchDvBatchIdxs(ibatchL,time_dil_source.at(Side::left));
+        std::vector<uint> batch_dtL = fetchDvBatchIdxs(ibatchL,time_dil_source,Side::left);
         START_TIMER("distil vectors left");
         makeDvLapSpinBatch(dv, n_idx, epack, Side::left, batch_dtL, peramb, tarray);
         STOP_TIMER("distil vectors left");
@@ -1301,7 +1302,7 @@ void DmfComputation<FImpl,T,Tio>
             // trivial loop unless non-default DISTILVECTOR_TIME_BATCH_SIZE>1
             for (uint ibatchR=0 ; ibatchR<time_dil_source.at(Side::right).size()/dvBatchSize_ ; ibatchR++)
             {
-                std::vector<uint> batch_dtR = fetchDvBatchIdxs(ibatchR,time_dil_source.at(Side::right), diag_shift);
+                std::vector<uint> batch_dtR = fetchDvBatchIdxs(ibatchR,time_dil_source,Side::right,diag_shift);
                 for (uint idtR=0 ; idtR<batch_dtR.size() ; idtR++)
                 {
                     uint dtR = batch_dtR[idtR];
