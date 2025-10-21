@@ -465,6 +465,9 @@ void TDistilMesonFieldFixed<FImpl>::execute(void)
     {
         std::map<Side, unsigned int> noise_idx = {{Side::left,npair[0]},{Side::right,npair[1]}};
         LOG(Message) << "Noise pair : " << noise_idx.at(Side::left) << " " << noise_idx.at(Side::right) << std::endl;
+        LOG(Message) << "Noise hashes : " << std::endl;
+        LOG(Message) << "- Left: " << noisel.generateHash()[noise_idx.at(Side::left)] << std::endl;
+        LOG(Message) << "- Right: " << noiser.generateHash()[noise_idx.at(Side::right)] << std::endl;
         //computation of distillation vectors (phi or rho)
         if(computation.isPhi(Side::left) || computation.isPhi(Side::right)) //if theres at least one phi, populate peramb map
         {
